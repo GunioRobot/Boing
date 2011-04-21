@@ -4,8 +4,6 @@
   :java-source-path "src"
   :java-fork true
   :javac-target "1.5"
-  :javac-options { :debug "on"}
-  :repositories {"internal" "http://repo.softaddicts.ca:8080/archiva/repository/internal"}
   :warn-on-reflection false
   :target-dir "target/"
   :jar-name "boing.jar"
