@@ -3,7 +3,7 @@
     [clojure.contrib.def]
     [clojure.contrib.trace]))
 
-(defvar- *contexts* (atom {}))
+(defvar- *contexts* (atom (boing.core.types.Context. :default {})))
 (defvar *current-context* nil)  ;; This can be rebound on the fly
 
 (defn get-current-context []
@@ -18,7 +18,7 @@
   "Add bean definitions to current context, throw an error if the configuration
    is not already registered"
   ([id beandefs]
-    (swap! *current-context* #(merge %1 %2)
+    (swap! *context* #(merge %1 %2)
       {id (merge (id @*contexts*) beandefs)})
     (throw (Exception. (format "Configuration %s does not exists"))))
   ([ctx-id beandefs
@@ -26,6 +26,10 @@
       ()
       (throw (Exception. (format "No such context %s" ctx-id))))))
 
+(defmacro with-context [id & body]
+  
+  )
+  
 (defn new-context
   "Registers a new bean context and returns it"
   [id beans]
