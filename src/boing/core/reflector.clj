@@ -1,7 +1,6 @@
 (ns boing.core.reflector
   "Reflection utility routines"
   (:use
-    [boing.core.types]
     [clojure.pprint]
     [clojure.contrib.def]
     [clojure.contrib.trace])
@@ -82,35 +81,6 @@
         (instance? e# Exception) (throw (Exception.  (format "No constructor found in class %s for arguments %s" java-class signature)))
         (instance? e# Error) (throw (Error. (format "No constructor found in class %s for arguments %s" java-class signature))))))))      
 
-(defn- valid-setter-sig?
-  "Validate if a setter's argument class matches its value class.
-   If the setter refers to another bean definition, validate with the class in the definition
-   since the real object is not yet instanciated.
-   If the value is a closure, accept it as is, class cast exception will be trapped at run time.
-   If a validation fails, we throw an exception otherwise return true."
-  [setter value]
-  (let [param-class (:mth-arg-class  (meta setter))
-        value-class (if (instance? boing.core.types.Bean value) (:java-class value)
-                      (Util/getPrimitiveClass (class value)))]
-      (cond (not (= value-class param-class))
-        (throw (Exception. (format "Setter argument class mismatch, got %s, expecting %s" value-class param-class)))
-        :else true)))
-
-(defn valid-bean-setters?
-  "Checks if a bean has all the necessary property setters
-   for the given property map"
-  [java-class properties]
-  (let [setters (find-all-setters java-class)]
-    (into {} (doall (map #(let [setter (% setters)
-                                property (% properties)]
-                            (do
-                              (cond (nil? (% setters))
-                                (throw (Exception. (format "No setter for property %s in class %s" % java-class)))
-                                (not (nil? property))
-                                (do
-                                  (valid-setter-sig? setter property)                                  
-                                  { % {:setter setter :property % :value property}})
-                                :else {}))) (keys properties))))))
 
 (defn valid-method-sig?
   "Check if a method exists with a valid signature mathing the given args.
