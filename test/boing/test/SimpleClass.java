@@ -1,5 +1,8 @@
 package boing.test;
 
+import java.util.List;
+import java.util.Map;
+
 import org.apache.commons.lang.StringEscapeUtils;
 
 public class SimpleClass {
@@ -23,8 +26,20 @@ public class SimpleClass {
 	private boolean boolVal;	
 	@SuppressWarnings("unused")
 	private String stringVal;
+	public void setListVal(List listVal) {
+		this.listVal = listVal;
+	}
+
+	public void setMapVal(Map mapVal) {
+		this.mapVal = mapVal;
+	}
+
 	@SuppressWarnings("unused")
 	private Object objectVal;
+	@SuppressWarnings("unused")
+	private List listVal;
+	@SuppressWarnings("unused")
+	private Map mapVal;
 
 	public void init() {
 		System.out.println("In init() of class SimpleClass");
@@ -160,8 +175,13 @@ public class SimpleClass {
 	}
 	
 	public String toString() {
-		return ""+byteVal + COLON + shortVal + COLON + intVal+COLON+longVal+COLON+stringVal
+		String value = ""+byteVal + COLON + shortVal + COLON + intVal+COLON+longVal+COLON+stringVal
 		+ COLON + floatVal + COLON + doubleVal + COLON + StringEscapeUtils.escapeJava(String.valueOf(charVal)) + COLON + boolVal;
+		if (listVal != null) 
+			value += COLON + listVal;
+		if (mapVal != null) 
+			value += COLON + mapVal;		
+		return value;
 	}
 	
 }

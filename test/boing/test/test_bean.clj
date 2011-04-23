@@ -2,6 +2,53 @@
   (:use [boing.bean] [clojure.test]))
 
 (deftest test-beandef []
+  (testing "Create bean definitions no args at all"
+    (is (= (:java-class
+             (defbean :test-bean-1 :boing.test.SimpleClass)) boing.test.SimpleClass))))
+
+(deftest test-beandef []
+  (testing "Create bean definitions using only constructors and keyword class names"
+    (is (= (:java-class
+             (defbean :test-bean-1 :boing.test.SimpleClass)) boing.test.SimpleClass))
+    (is (= (:java-class
+             (defbean :test-bean-1 :boing.test.SimpleClass
+               :c-args [(byte 1)])) boing.test.SimpleClass))
+    (is (= (:java-class
+             (defbean :test-bean-1 :boing.test.SimpleClass
+               :c-args [(byte 1) (short 2) (int 3) (long 4)])) boing.test.SimpleClass))
+    (is (= (:java-class
+             (defbean :test-bean-1 :boing.test.SimpleClass
+               :c-args [(byte 1) (short 2) (int 3) (long 4) "Test string"])) boing.test.SimpleClass))
+    (is (= (:java-class
+             (defbean :test-bean-1 :boing.test.SimpleClass
+               :c-args [(byte 1) (short 2) (int 3) (long 4) "Test string" (float 1.1) (double 1.2)])) boing.test.SimpleClass))
+    (is (= (:java-class
+             (defbean :test-bean-1 :boing.test.SimpleClass
+               :c-args [(byte 1) (short 2) (int 3) (long 4) "Test string" (float 1.1) (double 1.2) \H true])) boing.test.SimpleClass))))
+
+(deftest test-beandef []
+  (testing "Create bean definitions using only constructors and String class names"
+    (is (= (:java-class
+             (defbean :test-bean-1 "boing.test.SimpleClass")) boing.test.SimpleClass))
+    (is (= (:java-class
+             (defbean :test-bean-1 "boing.test.SimpleClass"
+               :c-args [(byte 1)])) boing.test.SimpleClass))
+    (is (= (:java-class
+             (defbean :test-bean-1 "boing.test.SimpleClass"
+               :c-args [(byte 1) (short 2) (int 3) (long 4)])) boing.test.SimpleClass))
+    (is (= (:java-class
+             (defbean :test-bean-1 "boing.test.SimpleClass"
+               :c-args [(byte 1) (short 2) (int 3) (long 4) "Test string"])) boing.test.SimpleClass))
+    (is (= (:java-class
+             (defbean :test-bean-1 "boing.test.SimpleClass"
+               :c-args [(byte 1) (short 2) (int 3) (long 4) "Test string" (float 1.1) (double 1.2)])) boing.test.SimpleClass))
+    (is (= (:java-class
+             (defbean :test-bean-1 "boing.test.SimpleClass"
+               :c-args [(byte 1) (short 2) (int 3) (long 4) "Test string" (float 1.1) (double 1.2) \H true])) boing.test.SimpleClass))))
+
+
+
+(deftest test-beandef []
   (testing "Create bean definitions using only constructors: boing.test.SimpleClass"
     (is (= (:java-class
              (defbean :test-bean-1 boing.test.SimpleClass)) boing.test.SimpleClass))
@@ -106,8 +153,6 @@
                                 :s-vals {:simpleBeanOne :test-bean-1 :simpleBeanTwo :test-bean-2})))
               "0:0:0:0:null:2.3:3.4:H:true:1:2:3:4:This is a test:0.0:0.0:\\u0000:false")))))
 
-
-
 (deftest test-closures []
     (testing "Test closures"
       (let [dbl 7.8
@@ -115,3 +160,11 @@
             first-bean (defabean boing.test.SimpleClass
                          :s-vals {:intVal (fn [] nb) :floatVal (float 2.3) :doubleVal (fn [] dbl) :charVal \H :boolVal true})]
         (is (= (.toString (create-bean first-bean)) "0:0:5:0:null:2.3:7.8:H:true")))))
+
+(deftest test-maps-and-lists []
+    (testing "Test maps and lists"
+      (let [listval (list 1 2 3)
+            mapval { :a 1 :b 2}
+            first-bean (defabean boing.test.SimpleClass
+                         :s-vals {:listVal listval :mapVal mapval})]
+        (is (= (.toString (create-bean first-bean)) "0:0:0:0:null:0.0:0.0:\\u0000:false:(1 2 3):{:a 1, :b 2}")))))

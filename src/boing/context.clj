@@ -33,25 +33,25 @@
 (defn add-context
   "Registers a new bean context if it does not exists and returns it"
   [id]
-  (if-let [ctx (id *contexts*)]
-    (swap! *contexts* #(merge %1 %2) {id {}})
-    (swap! *contexts* #(merge %1 %2) { id (Context. id {})})))
+  (if-let [ctx ((keyword id) *contexts*)]
+    (swap! *contexts* #(merge %1 %2) { (keyword id) {}})
+    (swap! *contexts* #(merge %1 %2) { (keyword id) (Context. id {})})))
 
 (defn merge-context
   "Merge two contexts, beans with the same ids will be replaced by
    the instances in the 'from' context"
   [from to]
-  (let [merger (merge (to @*contexts*) (from @*contexts*))]
+  (let [merger (merge ((keyword to) @*contexts*) ((keyword from) @*contexts*))]
     (swap! *contexts* #(merge %1 %2) { to merger })))
 
 (defn find-beandef
   ([id]
     (if-let [ctx (*current-context* @*contexts*)]
-      (id (:beandefs ctx))
+      ((keyword id) (:beandefs ctx))
       (throw (Exception. (format "No such bean %s in context %s" id *current-context*)))))
   ([ctx-id id]
-    (if-let [ctx (ctx-id @*contexts*)]
-      (id ctx)
+    (if-let [ctx ((keyword ctx-id) @*contexts*)]
+      ((keyword id) ctx)
       (throw (Exception. (format "No such bean %s in context %s" id ctx-id))))))
 
 
