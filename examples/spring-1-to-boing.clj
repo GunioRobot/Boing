@@ -1,37 +1,34 @@
 (ns examples.spring-to-boing-1
+  "This file is an example of recoding the sprin-1.xml file using boing.
+   Some of the beans are in fact using some Spring classes but they are not relevant
+   to Spring beans. It happens that the example used had some wired ORM related
+   Spring objects used.
+
+   Some definitionss are factory classes. Contrary to Spring, they can be used
+   directly as property values. The trick here is the post function which
+   returns directly whatever object we expect from the factory. 
+
+   The main purpose was to demonstrate that boing is much more shorter than its Spring
+   XML counterpart. (< 75 lines versus > 1900 lines) and much more dynamic.
+
+   In this example, we are using the default context (:default)"
+  
   (:use [boing.bean] [boing.context] [boing.resource] [clojure.contrib.def]))
 
+;; Global variables to rebind when creating beans
 (def *tmo* nil)
 (def *username* nil)
 (def *password* nil)
 
+;; Bean definitions
 (defbean :alerterBean "higiebus.bus.protocol.V2.alerts.Alerter" :s-vals {:producer :alertProducerBean :facility "UVISADAPTER"})
-
 (defbean :connectionFactoryBean "org.apache.activemq.ActiveMQConnectionFactory"
   :s-vals {:brokerURL (fn [] (format "failover:(tcp://brkmaster:61616?connectionTimeout=%s,tcp://brkslave:61616?connectionTimeout=%s)?randomize=false"))})
-
 (defbean :cacheProviderBean "net.sf.ehcache.hibernate.EhCacheProvider")
-
 (defbean :defaultEventProcessorBean "higiebus.adaptors.hms.events.processors.IgnoredEventProcessor" :s-vals {:alerter :alerterBean})
-
 (defbean :hmsInboundEventFactoryBean "higiebus.adaptors.hms.uvis.events.inbound.UvisInboundEventFactory"
   :s-vals {:alerter :alerterBean :componentStatus :componentMonitorBean :hmsCache :hmsCacheBean :hmsParameters :hmsParametersBean})
-
 (defbean :processorContextBean "higiebus.adaptors.hms.uvis.events.processors.ProcessorContext" :s-vals {:busCache :busCacheBean})
-
-;; Define a bunch of similar top level beans, these are at the top of the hierarchy
-(let [beans [["AdmitPatientProcessorBean" "higiebus.adaptors.hms.uvis.events.processors.AdmitPatientProcessor"]
-             ["DischargePatientProcessorBean" "higiebus.adaptors.hms.uvis.events.processors.DischargePatientProcessor"]
-             ["UpdatePatientProcessorBean" "higiebus.adaptors.hms.uvis.events.processors.UpdatePatientInformationProcessor"]
-             ["RequestProcessorBean" "higiebus.adaptors.hms.uvis.events.processors.RequestProcessor"]
-             ["ObservationProcessorBean" "higiebus.adaptors.hms.uvis.events.processors.ObservationProcessor"]
-             ["VisitProcessorBean" "higiebus.adaptors.hms.uvis.events.processors.UpdateVisitsProcessor"]
-             ["CensusProcessorBean" "higiebus.adaptors.hms.uvis.events.processors.HospitalCensusProcessor"]]]
-  (dorun (map
-           (fn [[bname bclass]]
-             (defbean bname bclass
-               :s-vals { :hmsSessionFactory :hmsSessionFactoryBean :processorContext :processorContextBean
-                        :hmsCache :hmsCacheBean :hmsParameters :hmsParametersBean :alerter :alerterBean })) beans)))
 
 (defbean :hmsParametersBean "higiebus.adaptors.hms.uvis.HMSUvisParameters" :mode :singleton
   :s-vals {:senderApplicationName "HIGIEBUS" :senderApplicationInstance "PROTOTYPE"
@@ -54,7 +51,6 @@
 (defbean :HMSRequestAnswerDaoBean "higiebus.adaptors.hms.uvis.dao.UvisRequestAnswerDao")
 (defbean :HMSDiagnosisDaoBean "higiebus.adaptors.hms.uvis.dao.UvisDiagnosisDao")
 (defbean :HMSHospitalCensusDaoBean "higiebus.adaptors.hms.uvis.dao.UvisHospitalCensusDao")
-(defbean :hmsCacheFactoryBean "higiebus.adaptors.hms.cache.HMSCacheFactory")
 (defbean :hmsCacheBean "higiebus.adaptors.hms.cache.HMSCacheFactory" :mode :singleton :post (fn [x] (.createInstance x)))
 
 (defn-memo list-mappings
@@ -63,6 +59,7 @@
 
 
 (defbean :hmsSessionFactoryBean "org.springframework.orm.hibernate3.LocalSessionFactoryBean"
+  :mode :singleton
   :s-vals {:dataSource :hmsDataSourceBean
            :cacheProvider :cacheProviderBean
            :hibernateProperties {:hibernate.dialect "org.hibernate.dialect.HSQLDialect"
@@ -92,8 +89,21 @@
           }
   :post (fn [x] (.createInstance x)))
 
-;; End of definitions --> Spring XML (nicely formatted) equivalent is nearly 2000 lines.
-;; The above: less than 75 lines and its dynamic...
+;; Define a bunch of similar top level beans, these are at the top of the hierarchy
+(let [beans [["AdmitPatientProcessorBean" "higiebus.adaptors.hms.uvis.events.processors.AdmitPatientProcessor"]
+             ["DischargePatientProcessorBean" "higiebus.adaptors.hms.uvis.events.processors.DischargePatientProcessor"]
+             ["UpdatePatientProcessorBean" "higiebus.adaptors.hms.uvis.events.processors.UpdatePatientInformationProcessor"]
+             ["RequestProcessorBean" "higiebus.adaptors.hms.uvis.events.processors.RequestProcessor"]
+             ["ObservationProcessorBean" "higiebus.adaptors.hms.uvis.events.processors.ObservationProcessor"]
+             ["VisitProcessorBean" "higiebus.adaptors.hms.uvis.events.processors.UpdateVisitsProcessor"]
+             ["CensusProcessorBean" "higiebus.adaptors.hms.uvis.events.processors.HospitalCensusProcessor"]]]
+  (dorun (map
+           (fn [[bname bclass]]
+             (defbean bname bclass
+               :s-vals { :hmsSessionFactory :hmsSessionFactoryBean :processorContext :processorContextBean
+                        :hmsCache :hmsCacheBean :hmsParameters :hmsParametersBean :alerter :alerterBean })) beans)))
+
+;; End of definitions
 
 ;; From now on using the above definitions is quite simple:
 (binding [*tmo* 3000

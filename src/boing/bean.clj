@@ -12,7 +12,7 @@
 (declare allocate-bean)
 
 (defrecord Bean [context id java-class mode setters constructor
-                 c-args factory init pre post])
+                 c-args factory init pre post comments])
 
 (defprotocol BoingBean
   "Unifies a few methods between bean/non-bean objects."
@@ -112,7 +112,7 @@
 
 (defn defbean
   "Create a bean definition"
-  ([bean-name jclass & {:keys [mode s-vals c-args factory init pre post] :or {mode :prototype}}]
+  ([bean-name jclass & {:keys [mode s-vals c-args factory init pre post comments] :or {mode :prototype}}]
   (try
       (let [id (keyword bean-name)
             java-class (to-class jclass)
@@ -120,7 +120,7 @@
             constructor (valid-constructor? java-class c-args)
             factory-fn (if (empty? factory) nil (fn [] (factory (constructor) s-vals)))
             init-mth (if-not (nil? init) (valid-method-sig? java-class init))
-            beandef (Bean. *current-context* id java-class mode setters constructor c-args factory-fn init-mth pre post)]
+            beandef (Bean. *current-context* id java-class mode setters constructor c-args factory-fn init-mth pre post comments)]
         (add-beandef beandef)
         beandef)
     (catch Exception e# (println (format "Error detected in bean definitions %s: %s" bean-name (.getMessage e#)))))))

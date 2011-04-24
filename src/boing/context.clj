@@ -45,6 +45,7 @@
     (swap! *contexts* #(merge %1 %2) { to merger })))
 
 (defn find-beandef
+  "Find a bean definitions either in the current context or in the given context."
   ([id]
     (if-let [ctx (*current-context* @*contexts*)]
       ((keyword id) (:beandefs ctx))
@@ -55,6 +56,7 @@
       (throw (Exception. (format "No such bean %s in context %s" id ctx-id))))))
 
 (defn bean-summary
+  "Dump a bean summary of the current context."
   ([]
     (if-let [ctx (get-context *current-context*)]
       (do (println (format "Summary of context %s" *current-context*))
