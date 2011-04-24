@@ -1,5 +1,5 @@
 (ns boing.test.test-context
-    (:use [boing.bean] [boing.context][clojure.test]))
+    (:use [boing.bean] [boing.context] [clojure.test]))
 
 (deftest test-default-context []
   (testing "Testing default bean context"

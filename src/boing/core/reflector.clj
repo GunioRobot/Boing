@@ -33,7 +33,8 @@
                                    static? {}
                                    (.startsWith mth-name +setter-prefix+)
                                    { (setter-to-prop mth-name)
-                                    (with-meta (fn [o p] (.invoke mth o (to-array [p]))) {:mth-arg-class (aget (.getParameterTypes mth) 0)})}
+                                    (with-meta (fn [o p] (.invoke mth o (to-array [p])))
+                                      {:mth-name (.getName mth) :mth-arg-class (aget (.getParameterTypes mth) 0)})}
                                    :else {})))
                           (:declaredMethods (bean java-class)))))))
 

@@ -54,4 +54,13 @@
       ((keyword id) ctx)
       (throw (Exception. (format "No such bean %s in context %s" id ctx-id))))))
 
-
+(defn bean-summary
+  ([]
+    (if-let [ctx (get-context *current-context*)]
+      (do (println (format "Summary of context %s" *current-context*))
+        (dorun (map (fn [[k v]] (println (format "Bean %s  %s" k (:java-class v)))) (:beandefs ctx))))))
+  ([id]
+    (if-let [ctx (get-context id)]
+      (do (println (format "Summary of context %s" id))
+        (dorun (map (fn [[k v]] (println (format "Bean %s  %s" k (:java-class v)))) (:beandefs ctx)))))))
+    

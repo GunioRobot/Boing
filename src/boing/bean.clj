@@ -12,7 +12,7 @@
 (declare allocate-bean)
 
 (defrecord Bean [context id java-class mode setters constructor
-                 c-args factory init post])
+                 c-args factory init pre post])
 
 (defprotocol BoingBean
   "Unifies a few methods between bean/non-bean objects."
@@ -68,7 +68,8 @@
    If the value is a closure, accept it as is, class cast exception will be trapped at run time.
    If a validation fails, we throw an exception otherwise return true."
   [setter value]
-  (let [param-class (:mth-arg-class  (meta setter))
+  (let [setter-name (:mth-name (meta setter))
+        param-class (:mth-arg-class  (meta setter))
         value-class (Util/getPrimitiveClass (get-class value))]
       (cond
         (= value-class clojure.lang.AFn)
@@ -78,7 +79,7 @@
         (= value-class clojure.lang.PersistentArrayMap) true
         (= value-class clojure.lang.PersistentHashMap) true
         (not (= value-class param-class))
-        (throw (Exception. (format "Setter argument class mismatch, got %s, expecting %s" value-class param-class)))
+        (throw (Exception. (format "Setter %s: argument class mismatch, got %s, expecting %s" setter-name value-class param-class)))
         :else true)))
 
 (defn- valid-bean-setters?
@@ -111,7 +112,7 @@
 
 (defn defbean
   "Create a bean definition"
-  ([bean-name jclass & {:keys [mode s-vals c-args factory init post] :or {mode :prototype}}]
+  ([bean-name jclass & {:keys [mode s-vals c-args factory init pre post] :or {mode :prototype}}]
   (try
       (let [id (keyword bean-name)
             java-class (to-class jclass)
@@ -119,7 +120,7 @@
             constructor (valid-constructor? java-class c-args)
             factory-fn (if (empty? factory) nil (fn [] (factory (constructor) s-vals)))
             init-mth (if-not (nil? init) (valid-method-sig? java-class init))
-            beandef (Bean. *current-context* id java-class mode setters constructor c-args factory-fn init-mth post)]
+            beandef (Bean. *current-context* id java-class mode setters constructor c-args factory-fn init-mth pre post)]
         (add-beandef beandef)
         beandef)
     (catch Exception e# (println (format "Error detected in bean definitions %s: %s" bean-name (.getMessage e#)))))))
@@ -151,13 +152,13 @@
 	    singleton
 	    (let [instance (invoke-constructor (:constructor beandef) (:c-args beandef))
 	          setters (:setters beandef)]
+	      (if-not (nil? (:pre beandef)) ((:pre beandef) instance))
 	      (dorun (map (fn [e] (apply-setter instance (val e))) (:setters beandef)))
-	      (if-not (nil? (:init beandef))
-	        (invoke-method instance (:init beandef)))
-	      (if-not (nil? (:post beandef))
-	        ((:post beandef) instance))
+	      (if-not (nil? (:init beandef)) (invoke-method instance (:init beandef)))
 	      (if (= (:mode beandef) :singleton) (register-singleton (:id beandef) instance))
-	      instance))
+        ;; The post value is returned if a post fn is present
+	      (if-not (nil? (:post beandef)) ((:post beandef) instance)
+         instance)))
     (catch Exception e# (throw (Exception. (.getCause e#))))))
 
 (defn create-bean
