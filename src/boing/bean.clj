@@ -69,7 +69,7 @@
 (defn- valid-setter-sig?
   "Validate if a setter's argument class matches its value class.
    If the setter refers to another bean definition, validate with the class in the definition
-   since the real object is not yet instanciated.
+   since the real object is not yet instantiated.
    If the value is a closure, accept it as is, class cast exception will be trapped at run time.
    If a validation fails, we throw an exception otherwise return true."
   [setter value]
