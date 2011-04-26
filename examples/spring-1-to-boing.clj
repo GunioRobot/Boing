@@ -5,11 +5,11 @@
    Spring objects used.
 
    Some definitionss are factory classes. Contrary to Spring, they can be used
-   directly as property values. The trick here is the post function which
+   as property values. The trick here is the post function which
    returns directly whatever object we expect from the factory. 
 
    The main purpose was to demonstrate that boing is much more shorter than its Spring
-   XML counterpart. (< 75 lines versus > 1900 lines) and much more dynamic.
+   XML counterpart. (< 125 lines versus > 1900 lines) and much more dynamic.
 
    In this example, we are using the default context (:default)"
   
@@ -23,12 +23,19 @@
 ;; Bean definitions
 (defbean :alerterBean "higiebus.bus.protocol.V2.alerts.Alerter" :s-vals {:producer :alertProducerBean :facility "UVISADAPTER"})
 (defbean :connectionFactoryBean "org.apache.activemq.ActiveMQConnectionFactory"
-  :s-vals {:brokerURL (fn [] (format "failover:(tcp://brkmaster:61616?connectionTimeout=%s,tcp://brkslave:61616?connectionTimeout=%s)?randomize=false"))})
+  :s-vals {:brokerURL #(format "failover:(tcp://brkmaster:61616?connectionTimeout=%s,tcp://brkslave:61616?connectionTimeout=%s)?randomize=false"
+                                     *tmo* *tmo*)})
 (defbean :cacheProviderBean "net.sf.ehcache.hibernate.EhCacheProvider")
 (defbean :defaultEventProcessorBean "higiebus.adaptors.hms.events.processors.IgnoredEventProcessor" :s-vals {:alerter :alerterBean})
 (defbean :hmsInboundEventFactoryBean "higiebus.adaptors.hms.uvis.events.inbound.UvisInboundEventFactory"
   :s-vals {:alerter :alerterBean :componentStatus :componentMonitorBean :hmsCache :hmsCacheBean :hmsParameters :hmsParametersBean})
-(defbean :processorContextBean "higiebus.adaptors.hms.uvis.events.processors.ProcessorContext" :s-vals {:busCache :busCacheBean})
+(defbean :processorContextBean "higiebus.adaptors.hms.uvis.events.processors.ProcessorContext"
+  :s-vals {:busCache (defbean :busCacheBean "higiebus.bus.cache.BusCacheFactory"
+                       :post #(.createInstance %) :class-override higiebus.bus.cache.BusCache)})
+
+(defbean :alertProducerBean "higiebus.tools.jms.Producer"
+  :s-vals {:subject "HIGIEBUS.ALERT" :connectionFactory :connectionFactoryBean
+           :transacted false :name "HIGIEBUSCore" :ackMode "AUTO_ACKNOWLEDGE"})
 
 (defbean :hmsParametersBean "higiebus.adaptors.hms.uvis.HMSUvisParameters" :mode :singleton
   :s-vals {:senderApplicationName "HIGIEBUS" :senderApplicationInstance "PROTOTYPE"
@@ -51,16 +58,24 @@
 (defbean :HMSRequestAnswerDaoBean "higiebus.adaptors.hms.uvis.dao.UvisRequestAnswerDao")
 (defbean :HMSDiagnosisDaoBean "higiebus.adaptors.hms.uvis.dao.UvisDiagnosisDao")
 (defbean :HMSHospitalCensusDaoBean "higiebus.adaptors.hms.uvis.dao.UvisHospitalCensusDao")
-(defbean :hmsCacheBean "higiebus.adaptors.hms.cache.HMSCacheFactory" :mode :singleton :post (fn [x] (.createInstance x)))
+(defbean :hmsCacheBean "higiebus.adaptors.hms.cache.HMSCacheFactory" 
+  :class-override higiebus.adaptors.hms.cache.HMSCache :mode :singleton :post #(.createInstance %))
 
 (defn-memo list-mappings
   "Load Hibernate mappings from the corresponding jar file."
-  [] (enum-resources "uvis/dao/mappings" higiebus.adaptors.hms.HMSParameters :pattern  "uvis/dao/mappings/.*[.]xml"))
-
+  [] (enum-resources "uvis/dao/mappings" :class higiebus.adaptors.hms.HMSParameters :pattern  "uvis/dao/mappings/.*[.]xml"))
 
 (defbean :hmsSessionFactoryBean "org.springframework.orm.hibernate3.LocalSessionFactoryBean"
   :mode :singleton
-  :s-vals {:dataSource :hmsDataSourceBean
+  :s-vals {:dataSource (defbean :hmsDataSourceBean "higiebus.adaptors.hms.factories.HMSDataSourceFactory"
+                         :s-vals {:driverClassName "oracle.jdbc.driver.OracleDriver" :url "jdbc:oracle:thin:@10.0.1.54:1521:uvistest"
+                                  :username (fn [] *username*) :password (fn [] *password*)
+                                  :maxWait (long 10000) :testWhileIdle true	:testOnBorrow true
+                                  :validationQuery "select 1 from dual" :maxActive 20 :maxIdle 8 :minIdle 3 :timeBetweenEvictionRunsMillis (long 900000)
+                                  :numTestsPerEvictionRun 50 :minEvictableIdleTimeMillis (long 1800000)
+                                  }
+                         :class-override javax.sql.DataSource
+                         :post #(.createInstance %))
            :cacheProvider :cacheProviderBean
            :hibernateProperties {:hibernate.dialect "org.hibernate.dialect.HSQLDialect"
                                  :hibernate.generate_statistics false
@@ -77,17 +92,10 @@
                                  :hibernate.cache.use_second_level_cache true
                                  :hibernate.cache.use_query_cache true
                                  :net.sf.ehcache.configurationResourceName "conf/ehcache.xml" }
-           :mappingResources (fn [] (list-mappings))})
-
-
-(defbean :hmsDataSourceBean "higiebus.adaptors.hms.factories.HMSDataSourceFactory"
-  :s-vals {:driverClassName "oracle.jdbc.driver.OracleDriver" :url "jdbc:oracle:thin:@10.0.1.54:1521:uvistest"
-           :username (fn [] *username*) :password (fn [] *password*)
-           :maxWait (long 10000) :testWhileIdle true	:testOnBorrow true
-           :validationQuery "select 1 from dual" :maxActive 20 :maxIdle 8 :minIdle 3 :timeBetweenEvictionRunsMillis (long 900000)
-           :numTestsPerEvictionRun 50 :minEvictableIdleTimeMillis (long 1800000)
-          }
-  :post (fn [x] (.createInstance x)))
+           :mappingResources #(list-mappings)}
+  :class-override org.hibernate.SessionFactory
+  :post      ;; This Spring object implements the Factory interface. getObject returns an new object from the factory
+  #(.getObject %)) 
 
 ;; Define a bunch of similar top level beans, these are at the top of the hierarchy
 (let [beans [["AdmitPatientProcessorBean" "higiebus.adaptors.hms.uvis.events.processors.AdmitPatientProcessor"]
@@ -109,6 +117,7 @@
 (binding [*tmo* 3000
           *username* "testuser"
           *password* "testpassword"]
-  (bean-summary)
+  (java.lang.System/setProperty "higiebus.adaptors.hms.datasourceProperties","examples/fakedproperties.properties")
+  ;;(bean-summary)
   (let [processor (create-bean :AdmitPatientProcessorBean)]
     (println "whatever you need to do with the object")))

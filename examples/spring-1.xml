@@ -20,6 +20,21 @@
 	<bean id="cacheProviderBean" class="net.sf.ehcache.hibernate.EhCacheProvider">
 	</bean>
 
+	<bean id="busCacheFactory"
+		class="higiebus.bus.cache.BusCacheFactory">
+	</bean>
+
+	<bean id="busCache" factory-bean="busCacheFactory" factory-method="createInstance">
+	</bean>
+
+	<bean id="alertProducer" class="higiebus.tools.jms.Producer">
+		<property name="subject" value="HIGIEBUS.ALERT" />
+		<property name="connectionFactory" ref="connectionFactoryBean" />
+		<property name="transacted" value="false" />
+		<property name="name" value="HIGIEBUSCore" />
+		<property name="ackMode" value="AUTO_ACKNOWLEDGE" />
+	</bean>
+	
 	<!-- UVIS HMS parameters -->
 	<bean id="hmsParametersBean"
 		class="higiebus.adaptors.hms.uvis.HMSUvisParameters"

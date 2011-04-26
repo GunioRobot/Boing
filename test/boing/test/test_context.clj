@@ -22,3 +22,19 @@
         (is (= first-bean (find-beandef :test-bean-1)))
         (is (= (get-bean-ids) [:test-bean-1 :test-bean-2])))
         (is (= *current-context* :alternate)))))
+
+(deftest test-merge-context []
+  (testing "Testing context merge"
+    (with-context :alternate-a
+      (defbean :test-bean-1 boing.test.SimpleClass
+               :properties {:floatVal (float 2.3) :doubleVal (double 3.4) :charVal \H :boolVal true})
+      (defbean :test-bean-2 boing.test.SimpleClass
+        :properties {:floatVal (float 2.3) :doubleVal (double 3.4) :charVal \H :boolVal true}))
+    (with-context :alternate-b
+      (defbean :test-bean-3 boing.test.SimpleClass
+               :properties {:floatVal (float 2.3) :doubleVal (double 3.4) :charVal \H :boolVal true})
+      (defbean :test-bean-4 boing.test.SimpleClass
+        :properties {:floatVal (float 2.3) :doubleVal (double 3.4) :charVal \H :boolVal true}))
+    (merge-contexts :alternate-a :alternate-b)
+    (is (= (get-bean-ids :alternate-b) [:test-bean-1 :test-bean-2 :test-bean-3 :test-bean-4]))
+    (is (= (get-bean-ids :alternate-a) [:test-bean-1 :test-bean-2]))))
