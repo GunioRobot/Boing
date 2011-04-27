@@ -1,12 +1,13 @@
 (ns boing.core.reflector
   "Reflection utility routines"
+  (:require [clojure.string :as s])
   (:use
-    [clojure.pprint]
+    [clojure.stacktrace]
     [clojure.contrib.def]
     [clojure.contrib.trace])
   (:import [java.lang.reflect Modifier InvocationTargetException] [boing Util]))
 
-(defvar- +setter-prefix+ "set")
+(defvar- +setter-prefixes+ ["set" "add"])
 (defvar- +array-fn+
   {
    (java.lang.Class/forName "[Ljava.lang.String;") (fn [s] (into-array java.lang.String s))
@@ -117,13 +118,18 @@
   BoingReflector
   (to-java-arg [this target-class] this))
 
-(defn setter-to-prop
+(defn- setter-to-prop
   "Derive the property name from the setter name"
   [setter]
-  (let [prop-name (.replaceFirst setter +setter-prefix+ "")]
-  (keyword (str (.toLowerCase (str (first prop-name ))) (apply str (rest prop-name))))))
+  (let [prop-name (first (remove nil? (map (fn [s] (if (.startsWith setter s) (s/replace-first setter s ""))) +setter-prefixes+)))]
+  (keyword (str (s/lower-case (str (first prop-name ))) (apply str (rest prop-name))))))
 
-(defn find-class-setters
+(defn- setter?
+  "Returns the first method name that qualifies as a setter."
+  [mth-name]
+  (first (remove false? (map (fn [s] (.startsWith mth-name s)) +setter-prefixes+))))
+
+(defn- find-class-setters
   "Return all the setter methods for the given class as a hash indexed by the property name,
    the static setters are not retained. Setter methods are wrapped in a function.
    The setter's argument class is added to the function object for future validation.
@@ -138,7 +144,7 @@
                                      static? (pos? (bit-and modifiers Modifier/STATIC))]
                                  (cond
                                    static? {}
-                                   (.startsWith mth-name +setter-prefix+)
+                                   (setter? mth-name)
                                    { (setter-to-prop mth-name)
                                     (with-meta (fn [o p] (.invoke mth o (to-array [p])))
                                       {:mth-name (.getName mth) :mth-arg-class (aget (.getParameterTypes mth) 0)})}
