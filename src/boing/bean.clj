@@ -9,6 +9,9 @@
     [clojure.contrib.trace])
   (:import [java.lang.reflect Modifier] [boing Util]))
 
+(defvar- *runtime-overrides* {})
+(defvar- *current-bean* nil)
+
 (declare allocate-bean)
 
 (defrecord Bean [context id java-class mode setters constructor
@@ -41,7 +44,7 @@
       (catch Exception e# (throw e#))))
   (get-class [this] clojure.lang.AFn))
 
-(extend-type Object        ;; "Default' implementation
+(extend-type Object        ;; Default implementation
   BoingBean
   (get-value [this] this)
   (get-class [this] (.getClass this)))
@@ -54,7 +57,7 @@
 
 (defn- singleton?
   "Check if the given bean id corresponds to a singleton in the cache for the current context.
-   if yes returns it. Singletons are not context dependent."
+   if yes returns it. Singletons are not context dependvalid-bean-setters?ent."
   [beandef]
   (cond
     (= (:mode beandef) :singleton) (get @*singletons* (singleton-name (:id beandef)))
@@ -71,10 +74,12 @@
    If the setter refers to another bean definition, validate with the class in the definition
    since the real object is not yet instantiated.
    If the value is a closure, accept it as is, class cast exception will be trapped at run time.
+   If the value is nil, accept the setter argument class as-is. Class mismatch errors will
+   then be trapped at run time.
    If a validation fails, we throw an exception otherwise return true."
   [setter value]
   (let [{:keys [mth-name mth-arg-class]} (meta setter)
-        value-class (Util/getPrimitiveClass (get-class value))]
+        value-class (Util/getPrimitiveClass (if (nil? value) mth-arg-class (get-class value)))]
       (cond
         (= value-class clojure.lang.AFn)
         true
@@ -88,19 +93,20 @@
 
 (defn- valid-bean-setters?
   "Checks if a bean has all the necessary property setters
-   for the given property map"
-  [java-class properties]
+   for the given property map.
+   Returns all the setters it found."
+  [bean-id java-class properties]
   (let [setters (find-all-setters java-class)]
     (into {} (doall (map #(let [setter(% setters)
-                                property (% properties)]
-                            (do
-                              (cond (nil? (% setters))
-                                (throw (Exception. (format "No setter for property %s in class %s" % java-class)))
-                                (not (nil? property))
-                                (do
-                                  (valid-setter-sig? setter property)                                  
-                                  { % {:setter setter :property % :value  (to-java-arg property (:mth-arg-class (meta setter)))}})
-                                :else {}))) (keys properties))))))
+                                property (% properties)
+                                value (if (nil? property) nil (to-java-arg property (:mth-arg-class (meta setter))))]
+                            (cond (nil? (% setters))
+                                  (throw (Exception. (format "No setter for property %s in class %s" % java-class)))
+                                  :else
+                                  (do
+                                    (valid-setter-sig? setter property)                                  
+                                    { % {:setter setter :bean-id bean-id :property % :value property}})
+                                  :else {})) (keys properties))))))
 (defn- to-class
   "Classes in bean definitions can be expressed as classes, keywords or strings.
    This function normalizes these to Class objects."
@@ -123,7 +129,7 @@
   (try
       (let [id (keyword bean-name)
             java-class (to-class jclass)
-            setters (valid-bean-setters? java-class s-vals)
+            setters (valid-bean-setters? id java-class s-vals)
             constructor (valid-constructor? java-class c-args)
             init-mth (if-not (nil? init) (valid-method-sig? java-class init))
             beandef (Bean. *current-context* id java-class mode setters constructor c-args init-mth pre post class-override comments)]
@@ -138,6 +144,15 @@
   [jclass & {:keys [s-vals c-args init pre post class-override comments]}]
   (defbean (keyword (gensym "anonymous")) jclass :s-vals s-vals :c-args c-args :init init :pre pre :post post :class-override
     class-override :comments comments))
+
+(defn override
+  "Fetch value overrides for the given bean/property."
+  ([property-name]
+    (if-let [bean-bindings (*current-bean* *runtime-overrides*)]
+      (property-name bean-bindings)))
+  ([bean-id property-name]
+    (if-let [bean-bindings (bean-id *runtime-overrides*)]
+      (property-name bean-bindings))))
  
 (defn- apply-setter
   "Apply setter to an allocated bean, We recurse through create-bean but the recursion level
@@ -148,15 +163,16 @@
       - A bean id (keyword) referring to another bean definition in the current context
       - A Java object to pass directly to the setter"
   [instance s]
-  (let [{:keys [setter value]} s
+  (let [{:keys [setter bean-id property value]} s
         {:keys [mth-arg-class]} (meta setter)]
-    (if-not (nil? value)
-      (if-let [value (get-value value)]
-        (let [equiv-value (to-java-arg (get-value value) mth-arg-class)]
-          (try 
-            (invoke-method instance setter equiv-value)
-            (catch Exception e#
-              (throw (Exception. (format "Error in setter: %s\n\tsetter %s\n\tvalue %s\n\tvalue %s" (.getMessage e#) (meta setter)
+    (let [value-override (override bean-id property)]
+      (if-let [value (if (not (nil? value-override)) value-override
+                       (if (not (nil? value)) (get-value value)))]
+          (let [equiv-value (to-java-arg value mth-arg-class)]
+            (try 
+              (invoke-method instance setter equiv-value)
+              (catch Exception e#
+                (throw (Exception. (format "Error in setter: %s\n\tsetter %s\n\tvalue %s\n\tvalue %s" (.getMessage e#) (meta setter)
                                          (class equiv-value) equiv-value))))))))))
 
 (declare bean-info)
@@ -174,32 +190,49 @@
 (defn- allocate-bean
   "Instantiate an object from an inline bean definition"
   [beandef]
-  (try 
+  (try
     (if-let [singleton (singleton? beandef)]
 	    singleton
 	    (let [{:keys [constructor c-args setters pre post init id mode] } beandef
             instance (invoke-constructor constructor c-args)]
-	      (if-not (nil? pre) (invoke-wrapper beandef "pre-function" (pre instance)))
-	      (dorun (map (fn [e] (invoke-wrapper beandef "Setter" (apply-setter instance (val e)))) setters))
-	      (if-not (nil? init) (invoke-wrapper beandef "Initialization" (invoke-method instance init)))
-	      (if (= mode :singleton) (register-singleton id instance))
-	      (if-not (nil? post)       ;; The post fn return value is returned as the object instance
-         (invoke-wrapper beandef "post-function" (post instance)) 
-          instance)))
-    (catch Exception e# (throw (Exception. (.getCause e#))))))
+       (binding [*current-bean* id]
+         (if-not (nil? pre) (invoke-wrapper beandef "pre-function" (pre instance)))
+         (dorun (map (fn [e] (invoke-wrapper beandef "Setter" (apply-setter instance (val e)))) setters))
+         (if-not (nil? init) (invoke-wrapper beandef "Initialization" (invoke-method instance init)))
+         (if (= mode :singleton) (register-singleton id instance))
+         (if-not (nil? post)       ;; The post fn return value is returned as the object instance
+           (invoke-wrapper beandef "post-function" (post instance)) 
+           instance))))
+     (catch Exception e# (throw (Exception. (.getCause e#))))))
 
 (defn create-bean
   "Return a new instanciation of a bean or the existing singleton if it already exists.
    Either an inline bean definition can be provided or a bean id (keyword).
-   The bean definition will be searched either in the current context.
+   The bean definition will be searched eitapply-setterher in the current context.
    The current context can be switched using the with-context macro.
    if no context is specified, the bean definition is pulled from the :default context"
-  [beandef-or-id]
-  (try
-    (if (nil? beandef-or-id) nil (get-value beandef-or-id))
-    (catch Exception e#
-      (print-stack-trace e# 1)
-      (root-cause e#))))
+  ([beandef-or-id]
+    (try
+      (if (nil? beandef-or-id) nil (get-value beandef-or-id))
+      (catch Exception e#
+        (print-stack-trace e# 1)
+        (root-cause e#))))
+  ([beandef-or-id bean-overrides]
+    (try
+      (let [bean-id (if (keyword? beandef-or-id) beandef-or-id (:id beandef-or-id))]
+        (binding [*runtime-overrides* (merge *runtime-overrides* {bean-id bean-overrides})]
+          (if (nil? beandef-or-id) nil (get-value beandef-or-id))
+          (catch Exception e#
+            (print-stack-trace e# 1)
+            (root-cause e#))))))
+  ([beandef-or-id bean-overrides global-overrides]
+    (try
+      (let [bean-id (if (keyword? beandef-or-id) beandef-or-id (:id beandef-or-id))]
+        (binding [*runtime-overrides* (merge *runtime-overrides* {bean-id bean-overrides} global-overrides)]         
+          (if (nil? beandef-or-id) nil (get-value beandef-or-id))
+          (catch Exception e#
+            (print-stack-trace e# 1)
+            (root-cause e#)))))))
 
 (defn- print-bean-info [beandef]
   (let [{:keys [id context java-class mode override-class comments]} beandef]
@@ -212,7 +245,7 @@
     (if-let [ctx (get-context *current-context*)]
       (if-let [beandef (id (:beandefs ctx))] (print-bean-info beandef)
         (println (format "No such bean %s" id)))))
-  ([id ctx-id]
+  ([id ctx-id]*current-bean* 
     (if-let [ctx (get-context ctx-id)]
       (if-let [beandef (id (:beandefs ctx))] (print-bean-info beandef)
         (println (format "No such bean %s" id))))))

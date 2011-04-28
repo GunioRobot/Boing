@@ -6,17 +6,17 @@
 
    Some definitionss are factory classes. Contrary to Spring, they can be used
    as property values. The trick here is the post function which
-   returns directly whatever object we expect from the factory. 
+   returns directly whatever object we expect from the factory.(trace  
 
    The main purpose was to demonstrate that boing is much more shorter than its Spring
    XML counterpart. (< 125 lines versus > 1900 lines) and much more dynamic.
 
    In this example, we are using the default context (:default)"
   
-  (:use [boing.bean] [boing.context] [boing.resource] [clojure.contrib.def]))
+  (:use [boing.bean] [boing.context] [boing.resource]
+        [clojure.contrib.def]))
 
 ;; Global variables to rebind when creating beans
-(def *tmo* nil)
 (def *username* nil)
 (def *password* nil)
 
@@ -24,7 +24,7 @@
 (defbean :alerterBean "higiebus.bus.protocol.V2.alerts.Alerter" :s-vals {:producer :alertProducerBean :facility "UVISADAPTER"})
 (defbean :connectionFactoryBean "org.apache.activemq.ActiveMQConnectionFactory"
   :s-vals {:brokerURL #(format "failover:(tcp://brkmaster:61616?connectionTimeout=%s,tcp://brkslave:61616?connectionTimeout=%s)?randomize=false"
-                                     *tmo* *tmo*)})
+                               (override :global :tmo) (override :global :tmo))})
 (defbean :cacheProviderBean "net.sf.ehcache.hibernate.EhCacheProvider")
 (defbean :defaultEventProcessorBean "higiebus.adaptors.hms.events.processors.IgnoredEventProcessor" :s-vals {:alerter :alerterBean})
 (defbean :hmsInboundEventFactoryBean "higiebus.adaptors.hms.uvis.events.inbound.UvisInboundEventFactory"
@@ -34,8 +34,7 @@
                        :post #(.createInstance %) :class-override higiebus.bus.cache.BusCache)})
 
 (defbean :alertProducerBean "higiebus.tools.jms.Producer"
-  :s-vals {:subject "HIGIEBUS.ALERT" :connectionFactory :connectionFactoryBean
-           :transacted false :name "HIGIEBUSCore" :ackMode "AUTO_ACKNOWLEDGE"})
+  :s-vals {:subject "HIGIEBUS.ALERT" :connectionFactory :connectionFactoryBean :transacted false :name "HIGIEBUSCore" :ackMode "AUTO_ACKNOWLEDGE"})
 
 (defbean :hmsParametersBean "higiebus.adaptors.hms.uvis.HMSUvisParameters" :mode :singleton
   :s-vals {:senderApplicationName "HIGIEBUS" :senderApplicationInstance "PROTOTYPE"
@@ -69,7 +68,7 @@
   :mode :singleton
   :s-vals {:dataSource (defbean :hmsDataSourceBean "higiebus.adaptors.hms.factories.HMSDataSourceFactory"
                          :s-vals {:driverClassName "oracle.jdbc.driver.OracleDriver" :url "jdbc:oracle:thin:@10.0.1.54:1521:uvistest"
-                                  :username (fn [] *username*) :password (fn [] *password*)
+                                  :username (fn [] *username*) :password nil
                                   :maxWait (long 10000) :testWhileIdle true	:testOnBorrow true
                                   :validationQuery "select 1 from dual" :maxActive 20 :maxIdle 8 :minIdle 3 :timeBetweenEvictionRunsMillis (long 900000)
                                   :numTestsPerEvictionRun 50 :minEvictableIdleTimeMillis (long 1800000)
@@ -114,10 +113,8 @@
 ;; End of definitions
 
 ;; From now on using the above definitions is quite simple:
-(binding [*tmo* 3000
-          *username* "testuser"
+(binding [*username* "testuser"
           *password* "testpassword"]
   (java.lang.System/setProperty "higiebus.adaptors.hms.datasourceProperties","examples/fakedproperties.properties")
-  ;;(bean-summary)
-  (let [processor (create-bean :AdmitPatientProcessorBean)]
-    (println "whatever you need to do with the object")))
+  (time (let [processor (create-bean :AdmitPatientProcessorBean {} {:hmsDataSourceBean {:password "testpassword"} :global {:tmo 300}})]
+          (println "whatever you need to do with the object"))))

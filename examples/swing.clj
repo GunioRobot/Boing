@@ -10,8 +10,8 @@
     (actionPerformed [event] (apply f event args))))
 
 (defbean :jbutton javax.swing.JButton
-  :c-args [ *label* ]
-  :s-vals {:actionListener (actl *action-listener*)})
+  :c-args [ (override :label) ]
+  :s-vals {:actionListener (override :action-listener)})
 
 (defn new-btn [label actl]
-  
+  (create-bean :jbutton {:
