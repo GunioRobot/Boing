@@ -23,8 +23,9 @@
 ;; Bean definitions
 (defbean :alerterBean "higiebus.bus.protocol.V2.alerts.Alerter" :s-vals {:producer :alertProducerBean :facility "UVISADAPTER"})
 (defbean :connectionFactoryBean "org.apache.activemq.ActiveMQConnectionFactory"
-  :s-vals {:brokerURL #(format "failover:(tcp://brkmaster:61616?connectionTimeout=%s,tcp://brkslave:61616?connectionTimeout=%s)?randomize=false"
-                               (override :global :tmo) (override :global :tmo))})
+  :s-vals {:brokerURL
+           #(format "failover:(tcp://brkmaster:61616?connectionTimeout=%s,tcp://brkslave:61616?connectionTimeout=%s)?randomize=false"
+                    (override :global :tmo) (override :global :tmo))}) ;; Get overriden values at bean creation time
 (defbean :cacheProviderBean "net.sf.ehcache.hibernate.EhCacheProvider")
 (defbean :defaultEventProcessorBean "higiebus.adaptors.hms.events.processors.IgnoredEventProcessor" :s-vals {:alerter :alerterBean})
 (defbean :hmsInboundEventFactoryBean "higiebus.adaptors.hms.uvis.events.inbound.UvisInboundEventFactory"
@@ -66,15 +67,16 @@
 
 (defbean :hmsSessionFactoryBean "org.springframework.orm.hibernate3.LocalSessionFactoryBean"
   :mode :singleton
-  :s-vals {:dataSource (defbean :hmsDataSourceBean "higiebus.adaptors.hms.factories.HMSDataSourceFactory"
-                         :s-vals {:driverClassName "oracle.jdbc.driver.OracleDriver" :url "jdbc:oracle:thin:@10.0.1.54:1521:uvistest"
-                                  :username (fn [] *username*) :password nil
-                                  :maxWait (long 10000) :testWhileIdle true	:testOnBorrow true
-                                  :validationQuery "select 1 from dual" :maxActive 20 :maxIdle 8 :minIdle 3 :timeBetweenEvictionRunsMillis (long 900000)
-                                  :numTestsPerEvictionRun 50 :minEvictableIdleTimeMillis (long 1800000)
-                                  }
-                         :class-override javax.sql.DataSource
-                         :post #(.createInstance %))
+  :s-vals {:dataSource
+           (defbean :hmsDataSourceBean "higiebus.adaptors.hms.factories.HMSDataSourceFactory"
+             :s-vals {:driverClassName "oracle.jdbc.driver.OracleDriver" :url "jdbc:oracle:thin:@10.0.1.54:1521:uvistest"
+                      :username (fn [] *username*) :password nil ;; Get username via thread bindings, password with property override
+                      :maxWait (long 10000) :testWhileIdle true	:testOnBorrow true
+                      :validationQuery "select 1 from dual" :maxActive 20 :maxIdle 8 :minIdle 3 :timeBetweenEvictionRunsMillis (long 900000)
+                      :numTestsPerEvictionRun 50 :minEvictableIdleTimeMillis (long 1800000)
+                      }
+             :class-override javax.sql.DataSource
+             :post #(.createInstance %))
            :cacheProvider :cacheProviderBean
            :hibernateProperties {:hibernate.dialect "org.hibernate.dialect.HSQLDialect"
                                  :hibernate.generate_statistics false
@@ -116,5 +118,8 @@
 (binding [*username* "testuser"
           *password* "testpassword"]
   (java.lang.System/setProperty "higiebus.adaptors.hms.datasourceProperties","examples/fakedproperties.properties")
-  (time (let [processor (create-bean :AdmitPatientProcessorBean {} {:hmsDataSourceBean {:password "testpassword"} :global {:tmo 300}})]
+  (time (let [processor (create-bean :AdmitPatientProcessorBean {} ;; No override for values in this bean
+                                     ;; Some globally available overrides. :global is not a bean definition,
+                                     ;; :hmsDataSourceBean is.
+                                     {:hmsDataSourceBean {:password "testpassword"} :global {:tmo 300}})]
           (println "whatever you need to do with the object"))))
