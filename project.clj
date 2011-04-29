@@ -7,6 +7,7 @@
   :warn-on-reflection false
   :target-dir "target/"
   :jar-name "boing.jar"
+  :clean-non-project-classes true
   :manifest {"Built-By" "build-manager"
              "Specification-Title" "Boing library"
              "Specification-Version" "1.0"
