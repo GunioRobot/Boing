@@ -25,7 +25,7 @@ We will see in the following weeks/months how far we can get with this.
 ##Documentation
 
 Please refer to the Wiki of the project at:
-http://gut
+https://github.com/lprefontaine/Boing/wiki
 
 ##Examples
 
