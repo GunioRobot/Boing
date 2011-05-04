@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="src" path="test"/>
+	<classpathentry kind="src" path="examples"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="lib" path="classes"/>
+	<classpathentry kind="lib" path="/opt/higiebus/apps/libraries/ojdbc14.jar"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.USER_LIBRARY/Clojure1.2"/>
+	<classpathentry kind="lib" path="/opt/higiebus/apps/libraries/activemq-all-5.2.0.jar"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.USER_LIBRARY/Apache-common"/>
+	<classpathentry kind="lib" path="/opt/higiebus/apps/libraries/HIGIEBUSCommon.jar"/>
+	<classpathentry kind="lib" path="/opt/higiebus/apps/libraries/HIGIEBUSProtocols.jar"/>
+	<classpathentry kind="lib" path="/opt/higiebus/apps/libraries/HIGIEBUSHMSAdapters.jar"/>
+	<classpathentry kind="lib" path="/opt/higiebus/apps/libraries/ehcache-1.4.1.jar"/>
+	<classpathentry kind="lib" path="/opt/higiebus/apps/libraries/hibernate3.jar"/>
+	<classpathentry kind="lib" path="resources-test"/>
+	<classpathentry kind="lib" path="/opt/higiebus/apps/libraries/spring.jar"/>
+	<classpathentry kind="lib" path="/opt/higiebus/apps/libraries/dom4j-1.6.1.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>
