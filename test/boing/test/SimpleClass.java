@@ -2,10 +2,11 @@ package boing.test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 
 import org.apache.commons.lang.StringEscapeUtils;
 
-public class SimpleClass {
+public class SimpleClass extends SimpleClassParent{
 	private static String COLON = ":";
 	
 	@SuppressWarnings("unused")
@@ -26,6 +27,20 @@ public class SimpleClass {
 	private boolean boolVal;	
 	@SuppressWarnings("unused")
 	private String stringVal;
+	@SuppressWarnings("unused")
+	private Object objectVal;
+	@SuppressWarnings("unused")
+	private List listVal;
+	@SuppressWarnings("unused")
+	private Map mapVal;
+	@SuppressWarnings("unused")
+	private Properties props;
+	
+	public void setProps(Properties props) {
+		System.out.println("In Simple Class properties setter");
+		this.props = props;
+	}
+
 	public void setListVal(List listVal) {
 		this.listVal = listVal;
 	}
@@ -34,14 +49,8 @@ public class SimpleClass {
 		this.mapVal = mapVal;
 	}
 
-	@SuppressWarnings("unused")
-	private Object objectVal;
-	@SuppressWarnings("unused")
-	private List listVal;
-	@SuppressWarnings("unused")
-	private Map mapVal;
-
 	public void init() {
+		boolVal = true;
 		System.out.println("In init() of class SimpleClass");
 	}
 	
@@ -168,7 +177,19 @@ public class SimpleClass {
 		this.charVal = charVal;
 		this.boolVal = boolVal;
 	}
+	
 
+	public SimpleClass(List listVal, Map mapVal) {
+		super();
+		this.listVal = listVal;
+		this.mapVal = mapVal;
+	}	
+
+	public SimpleClass(Properties props) {
+		super();
+		this.props = props;
+	}
+	
 	public SimpleClass(Object objectVal) {
 		super();
 		this.objectVal = objectVal;
@@ -180,7 +201,9 @@ public class SimpleClass {
 		if (listVal != null) 
 			value += COLON + listVal;
 		if (mapVal != null) 
-			value += COLON + mapVal;		
+			value += COLON + mapVal;
+		if (props != null) 
+			value += COLON + props;	
 		return value;
 	}
 	

@@ -1,6 +1,21 @@
 (ns boing.test.test-context
     (:use [boing.bean] [boing.context] [clojure.test]))
 
+(deftest test-singleton []
+    (testing
+      "Instantiate singleton"
+      (with-context :my-ctx
+	      (let [singleton (defbean :test-bean-1 boing.test.SimpleClass :mode :singleton
+	                         :c-args [:floatVal (float 2.3) :doubleVal (double 3.4) :charVal \H :boolVal true])
+	            alien-singleton 
+	            (with-context :my-ctx
+	              (defbean :test-bean-1 boing.test.SimpleClass :mode :singleton
+	                :s-vals {:floatVal (float 2.3) :doubleVal (double 3.4) :charVal \H :boolVal true}))]
+	        (is (= (.hashCode (create-bean singleton)) (.hashCode (create-bean singleton))))
+	        (with-context :my-ctx
+	          (is (= (.hashCode (create-bean alien-singleton)) (.hashCode (create-bean alien-singleton)))))
+	        ))))
+
 (deftest test-default-context []
   (testing "Testing default bean context"
     (let [first-bean (defbean :test-bean-1 boing.test.SimpleClass

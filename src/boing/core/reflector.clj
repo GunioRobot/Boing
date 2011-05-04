@@ -2,10 +2,12 @@
   "Reflection utility routines"
   (:require [clojure.string :as s])
   (:use
+    [clojure.pprint]
     [clojure.stacktrace]
     [clojure.contrib.def]
     [clojure.contrib.trace])
   (:import [java.lang.reflect Modifier InvocationTargetException] [boing Util]))
+
 
 (defvar- +setter-prefixes+ ["set" "add"])
 (defvar- +array-fn+
@@ -24,40 +26,34 @@
 
 (defvar- *reflection-cache* (atom {}))
 
-(defn- get-reflection-cache
-  "Extract from the cache the required item for the given class.
-   Valid items cached are: :setters and :interfaces"
+(defn- get-reflection-info
+  "Extract from the cache the required item for the given class."
   [java-class item]
-  (let [hashcode (java.lang.System/identityHashCode java-class)]
-    (if-let [item-cached (item (get @*reflection-cache* hashcode))]
-      item-cached
-      nil)))
+  (try 
+    (let [hashcode (java.lang.System/identityHashCode java-class)]
+      (if-let [item-cached (item (get @*reflection-cache* hashcode))]
+        item-cached
+        (item (get (swap! *reflection-cache* #(merge %1 %2)
+                          {hashcode (reduce merge {} (bean java-class))}) hashcode))))
+    (catch Exception e# (print-cause-trace e#))))
 
-(defn- update-reflection-cache
-  "Updates the reflection cache with the provided class.
-   Returns the cached items for the given class.
-   Valid items cached are: :setters :interfaces"
-  [java-class items-map]
-  (let [hashcode (java.lang.System/identityHashCode java-class)]
-    (if-let [items-cached (get @*reflection-cache* hashcode)]
-      (get (swap! *reflection-cache* #(merge %1 %2) {hashcode (merge items-cached items-map)}) hashcode)
-      (get (swap! *reflection-cache* #(merge %1 %2) {hashcode items-map}) hashcode))))
+(defn- update-reflection-info
+  "Update the cache for the given class and returns the added map entry."
+  [java-class item values]
+  (let [hashcode (java.lang.System/identityHashCode java-class)
+        entry {item values}]
+    (swap! *reflection-cache* #(merge %1 %2) {hashcode (merge (get *reflection-cache* java-class) entry)})
+    entry))
 
-(defn- list-if?
-  "Returns true if the given class implements the List interface.
-   Class interfaces are cached for future use."
-  [cl]
-  (if-let [ifs (get-reflection-cache cl :interfaces)]
-    (get ifs cl)
-    (update-reflection-cache cl (map (fn [if] {(identity if) true}) (:interfaces (bean cl))))))
-
-(defn- map-if?
-  "Returns true if a class implements the java.util.Map interface.
-   Class interfaces are cached for future use."
-  [cl]
-  (if-let [ifs (get-reflection-cache cl :interfaces)]
-    (get ifs cl)
-    (update-reflection-cache cl (map (fn [if] {(identity if) true}) (:interfaces (bean cl))))))
+  "Returns true if a class implements the given interface"
+(defn- has-interface?
+  [java-class ifc]
+  (if-let [ifs (get-reflection-info java-class :interfaces)]
+    (get ifs ifc)
+    (loop [ifs (transient {}) curr-class java-class]
+      (if (nil? curr-class) (persistent! ifs)
+        (recur (reduce conj! ifs (map (fn [ifc] {ifc true}) (get-reflection-info java-class :interfaces)))
+               (get-reflection-info java-class :superclass))))))
 
 (defprotocol BoingReflector
   "This protocol helps the reflector to adapt Clojure values to java setter argument signatures."
@@ -70,8 +66,8 @@
     (let [fn-array (get +array-fn+ target-class)]
       (cond
         fn-array (fn-array this)
-        (list-if? target-class) (doall this)
-        (and (map? this) (map-if? target-class)) (doall this)       
+        (has-interface? target-class java.util.List) (doall this)
+        (has-interface? target-class java.util.Map) (doall this)       
         :else (object-array (doall this))))))
 
 (extend-type clojure.lang.PersistentVector
@@ -136,88 +132,129 @@
    We assume that there is only one setter per property. This may be too simplistic however.
    Next release will index by property name and signature."
   [java-class]
-  (into {}
-    (doall (remove nil? (map (fn [mth]
-                               (let [properties (bean mth)
-                                     modifiers (:modifiers properties)
-                                     mth-name (:name properties)
-                                     static? (pos? (bit-and modifiers Modifier/STATIC))]
-                                 (cond
-                                   static? {}
-                                   (setter? mth-name)
-                                   { (setter-to-prop mth-name)
-                                    (with-meta (fn [o p] (.invoke mth o (to-array [p])))
-                                      {:mth-name (.getName mth) :mth-arg-class (aget (.getParameterTypes mth) 0)})}
-                                   :else {})))
-                          (:declaredMethods (bean java-class)))))))
+  (reduce #(if (nil? %2) %1 (conj %1 %2)) {}
+          (map (fn [mth]
+                 (let [properties (bean mth)
+                       modifiers (:modifiers properties)
+                       mth-name (:name properties)
+                       static? (pos? (bit-and modifiers Modifier/STATIC))]
+                   (cond
+                     static? {}
+                     (setter? mth-name)
+                     { (setter-to-prop mth-name) mth}
+                     :else {})))
+               (get-reflection-info java-class :declaredMethods))))
 
-(defn find-all-setters
+(defn find-setters
   "Return all the setter methods for this class and its super classes
    as a hash indexed by the property name, the static setters are not retained
    If we already computed the setter map for this class, it's in the cache so we can return it immediately"
   [java-class]
-  (if-let [setter-map (get-reflection-cache java-class :setters)]
+  (if-let [setter-map (get-reflection-info java-class :setters)]
     setter-map
     (loop [setter-map (transient {}) curr-class java-class]
       (if (nil? curr-class)
-        (:setters (update-reflection-cache java-class {:setters (persistent! setter-map)}))
-        (recur (conj! setter-map (find-class-setters curr-class)) (:genericSuperclass (bean curr-class)))))))
+        (:setters (update-reflection-info java-class :setters (persistent! setter-map)))
+        (recur (reduce conj! setter-map (find-class-setters curr-class)) (:superclass (bean curr-class)))))))
 
-(defn valid-constructor?
-  "Check if a constructor exists with the signature of the given args,
-   if no args are specified, return the noargs constructor"
-  [java-class args]
-  (let [signature (into [] (doall (map #(Util/getPrimitiveClass (class %)) args)))]
-    (try 
-      (.getConstructor java-class (into-array java.lang.Class signature))
-    (catch NoSuchMethodException e#
-      (cond
-        (instance? e# Exception) (throw (Exception.  (format "No constructor found in class %s for arguments %s" java-class signature)))
-        (instance? e# Error) (throw (Error. (format "No constructor found in class %s for arguments %s" java-class signature))))))))      
 
+(defn- valid-args?
+  "Validate if the arguments are matching the signature.
+   The arguments can be expressed as values or classes.
+   We allow Map and List interfaces to match and can we defer validation later
+   when needed."
+  [java-class args mth-sig]
+  (cond
+    (and (zero? (count args)) (zero? (count mth-sig))) true
+    (= (count args) (count mth-sig))
+    (reduce #(and %1 %2)
+            (map (fn [arg mth-class]
+                   (if (nil? arg) true
+                     (let [arg (if (class? arg) arg (to-java-arg arg mth-class))
+                           arg-class (if (class? arg) arg (class arg))]
+                       (cond
+                             (keyword? arg) true ;; Maybe a reference to another object
+                             (fn? arg) true      ;; Defer
+                             (and (list? arg) (or (= mth-class java.util.List) (has-interface? mth-class java.util.List))) true
+                             (and (map? arg) (or (= mth-class java.util.Map) (has-interface? mth-class java.util.Map))) true
+                             (= (Util/getPrimitiveClass arg-class) mth-class) true
+                             (= (class arg) mth-class) true
+                             :else false)))) args mth-sig))
+    :else false))
+
+(defn- filter-class-methods
+  "Filter methods matching signatures in the given class."
+  ([java-class args]
+    (reduce #(if (nil? %2) %1 (conj %1 %2)) []
+            (map (fn [mth]
+                   (if (= (.getDeclaringClass mth) java-class)
+                     (if (valid-args? java-class args (apply vector (.getParameterTypes mth))) mth)))
+                 (get-reflection-info java-class :declaredMethods))))
+  ([java-class args mth-name]
+    (let [pattern (re-pattern mth-name)]
+      (reduce #(if (nil? %2) %1 (conj %1 %2)) []
+              (map (fn [mth]
+                     (if (= (.getDeclaringClass mth) java-class)
+                       (if (re-find pattern (.getName mth))
+                         (if (valid-args? java-class args (apply vector (.getParameterTypes mth))) mth))))
+                   (get-reflection-info java-class :declaredMethods))))))
+
+(defn find-methods
+  "Find methods matching a signature for the given args including in super classes."
+  ([java-class args]
+    (loop [cl java-class mths (transient [])]
+      (if (= cl java.lang.Object) (persistent! mths)
+        (recur (get-reflection-info cl :superclass) (reduce conj! mths (filter-class-methods cl args))))))
+  ([java-class args mth-name]
+    (loop [cl java-class mths (transient [])]
+      (if (= cl java.lang.Object) (persistent! mths)
+        (recur (get-reflection-info cl :superclass) (reduce conj! mths (filter-class-methods cl args mth-name)))))))
 
 (defn valid-method-sig?
-  "Check if a method exists with a valid signature mathing the given args.
-   Returns the method if found, otherwise throw an error/exception."
-  ([java-class method args]
-  (let [signature (into [] (doall (map #(Util/getPrimitiveClass (class %)) args)))]
-    (try 
-      (.getMethod java-class method (into-array java.lang.Class signature))
-    (catch NoSuchMethodException e#
-      (cond
-        (instance? e# Exception) (throw (Exception.  (format "No method %s found in class %s for arguments %s" method java-class signature)))
-        (instance? e# Error) (throw (Error. (format "No method %s found in class %s for arguments %s" method java-class signature))))))))
+  [java-class mth args]
+  (valid-args? java-class args (apply vector (.getParameterTypes mth))))
 
-  ([java-class method]
-    (try 
-      (.getMethod java-class method (into-array java.lang.Class []))
-      (catch NoSuchMethodException e#
-        (cond
-          (instance? e# Exception) (throw (Exception.  (format "No method found in class %s" java-class)))
-          (instance? e# Error) (throw (Error. (format "No method found in class %s" java-class))))))))
+(defn find-constructors
+  "Find constructors matching a signature for the given args."
+  [java-class args]
+  (try 
+    (loop [cl java-class ctors (transient [])]
+      (if (= cl java.lang.Object) (persistent! ctors)
+        (recur (get-reflection-info cl :superclass) 
+               (reduce #(if (nil? %2) %1 (conj! %1 %2)) ctors
+                       (map (fn [ctor]
+                              (if (= (.getDeclaringClass ctor) cl)
+                                (if (valid-args? java-class args (apply vector (.getParameterTypes ctor))) ctor)))
+                            (get-reflection-info cl :declaredConstructors))))))
+    (catch Exception e# (print-cause-trace e#))))
 
 (defn invoke-constructor
   "Invoke constructor with the given args."
-  ([constructor args]
+  ([ctor args]
+    (let [arg-classes (apply vector (.getParameterTypes ctor))
+          args (to-array (map #(if (nil? %1) nil (to-java-arg %1 %2)) args arg-classes))]
+      (try
+        (.newInstance ctor args)
+        (catch InvocationTargetException e#
+          (print-cause-trace e#)
+          (cond
+            (instance? e# Exception) (throw (Exception. (.getCause e#)))
+            (instance? e# Error) (throw (Error. (.getCause e#))))))))
+  ([ctor]
     (try
-      (.newInstance constructor (to-array args))
+      (.newInstance ctor (to-array []))
       (catch InvocationTargetException e#
-        (cond
-          (instance? e# Exception) (throw (Exception. (.getCause e#)))
-          (instance? e# Error) (throw (Error. (.getCause e#)))))))
-  ([constructor]
-  (try
-    (.newInstance constructor (to-array []))
-    (catch InvocationTargetException e#
-      (cond
-        (instance? e# Exception) (throw (Exception. (.getCause e#)))
-        (instance? e# Error) (throw (Error. (.getCause e#))))))))    
+        (print-cause-trace e#)
+		      (cond
+		        (instance? e# Exception) (throw (Exception. (.getCause e#)))
+		        (instance? e# Error) (throw (Error. (.getCause e#))))))))
 
 (defn invoke-method
-  "Invoke the given setter with its values"
-  ([instance method values]
+  "Invoke the given method with the given values"
+  ([instance method args args-classes]
     (try
-      (.invoke method instance values)
+      (let [args (to-array (map #(if (nil? %1) nil (to-java-arg %1 %2)) args args-classes))]
+	      (.invoke method instance args))
       (catch InvocationTargetException e#
         (cond
           (instance? e# Exception) (throw (Exception. (.getCause e#)))
