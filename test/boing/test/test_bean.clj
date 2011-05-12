@@ -255,3 +255,5 @@
             first-bean (defabean boing.test.SimpleClass
                          :c-args [ mapval])]
         (is (= (.toString (create-bean first-bean)) "0:0:0:0:null:0.0:0.0:\\u0000:false:{b=2, a=1}")))))
+
+

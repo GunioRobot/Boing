@@ -168,19 +168,20 @@
 	<bean id="hmsCacheBean" factory-bean="hmsCacheFactory" factory-method="createInstance">
 	</bean>
 
-	<!-- UVIS event processors -->
+	<!-- UVIS event processors --> 
+	
 	<bean id="hmsInboundEventFactoryBean" scope="prototype"
 		class="higiebus.adaptors.hms.uvis.events.inbound.UvisInboundEventFactory">
-		<property name="alerter" ref="alerter" />
+		<property name="alerter" ref="alerterBean" />
 		<property name="componentStatus" ref="componentMonitorBean" />
 		<property name="transactionManager" ref="hmsTxManager" />
-		<property name="hmsCache" ref="hmsCache" />
+		<property name="hmsCache" ref="hmsCacheBean" />
 		<property name="hmsParameters" ref="hmsParametersBean" />
 	</bean>
 
 	<bean id="defaultEventProcessorBean" scope="prototype"
 		class="higiebus.adaptors.hms.events.processors.IgnoredEventProcessor">
-		<property name="alerter" ref="alerter" />
+		<property name="alerter" ref="alerterBean" />
 	</bean>
 	
 	<bean id="processorContextBean" scope="prototype"
@@ -188,74 +189,49 @@
 		<property name="busCache" ref="busCache" />
 	</bean>
 
+	<bean id="abstractProcessorBean" abstract="true">
+	    <property name="hmsSessionFactory" ref="hmsSessionFactoryBean" />
+	    <property name="processorContext" ref="processorContextBean"/>
+	    <property name="hmsCache" ref="hmsCacheBean" />
+	    <property name="hmsParameters" ref="hmsParametersBean" />
+	    <property name="alerter" ref="alerterBean" />
+	</bean>	
+	
+
 	<bean id="AdmitPatientProcessorBean" scope="prototype" destroy-method="destroy"
-		class="higiebus.adaptors.hms.uvis.events.processors.AdmitPatientProcessor">
-		<property name="hmsSessionFactory" ref="hmsSessionFactoryBean" />
-		<property name="processorContext" ref="processorContext"/>
-		<property name="hmsCache" ref="hmsCache" />
-		<property name="hmsParameters" ref="hmsParametersBean" />
-		<property name="alerter" ref="alerter" />
-	</bean>
+		class="higiebus.adaptors.hms.uvis.events.processors.AdmitPatientProcessor"
+		parent="abstractProcessorBean"/>
 
 	<bean id="DischargePatientProcessorBean" scope="prototype"
 		destroy-method="destroy"
-		class="higiebus.adaptors.hms.uvis.events.processors.DischargePatientProcessor">
-		<property name="hmsSessionFactory" ref="hmsSessionFactoryBean" />
-		<property name="processorContext" ref="processorContext"/>
-		<property name="hmsCache" ref="hmsCache" />
-		<property name="alerter" ref="alerter" />
-		<property name="hmsParameters" ref="hmsParametersBean" />
-	</bean>
+		class="higiebus.adaptors.hms.uvis.events.processors.DischargePatientProcessor"
+		parent="abstractProcessorBean"/>
 
 	<bean id="UpdatePatientProcessorBean" scope="prototype"
 		destroy-method="destroy"
-		class="higiebus.adaptors.hms.uvis.events.processors.UpdatePatientInformationProcessor">
-		<property name="hmsSessionFactory" ref="hmsSessionFactoryBean" />
-		<property name="processorContext" ref="processorContext"/>
-		<property name="hmsCache" ref="hmsCache" />
-		<property name="hmsParameters" ref="hmsParametersBean" />
-		<property name="alerter" ref="alerter" />
-	</bean>
+		class="higiebus.adaptors.hms.uvis.events.processors.UpdatePatientInformationProcessor"
+		parent="abstractProcessorBean"/>
 
 	<bean id="RequestProcessorBean" scope="prototype"
-		class="higiebus.adaptors.hms.uvis.events.processors.RequestProcessor">
-		<property name="hmsSessionFactory" ref="hmsSessionFactoryBean" />
-		<property name="processorContext" ref="processorContext"/>
-		<property name="hmsCache" ref="hmsCache" />
-		<property name="hmsParameters" ref="hmsParametersBean" />
-		<property name="alerter" ref="alerter" />
-	</bean>
+		class="higiebus.adaptors.hms.uvis.events.processors.RequestProcessor"
+		parent="abstractProcessorBean"/>		
 
 	<bean id="ObservationProcessorBean" scope="prototype"
-		class="higiebus.adaptors.hms.uvis.events.processors.ObservationProcessor">
-		<property name="hmsSessionFactory" ref="hmsSessionFactoryBean" />
-		<property name="processorContext" ref="processorContext"/>
-		<property name="hmsCache" ref="hmsCache" />
-		<property name="hmsParameters" ref="hmsParametersBean" />
-		<property name="alerter" ref="alerter" />
-	</bean>
+		class="higiebus.adaptors.hms.uvis.events.processors.ObservationProcessor"
+		parent="abstractProcessorBean"/>
 
 	<bean id="VisitProcessorBean" scope="prototype"
-		class="higiebus.adaptors.hms.uvis.events.processors.UpdateVisitsProcessor">
-		<property name="hmsSessionFactory" ref="hmsSessionFactoryBean" />
-		<property name="processorContext" ref="processorContext"/>
-		<property name="hmsCache" ref="hmsCache" />
-		<property name="hmsParameters" ref="hmsParametersBean" />
-		<property name="alerter" ref="alerter" />
-	</bean>
+		class="higiebus.adaptors.hms.uvis.events.processors.UpdateVisitsProcessor"
+		parent="abstractProcessorBean"/>
 
 	<bean id="CensusProcessorBean" scope="prototype"
-		class="higiebus.adaptors.hms.uvis.events.processors.HospitalCensusProcessor">
-		<property name="hmsSessionFactory" ref="hmsSessionFactoryBean" />
-		<property name="processorContext" ref="processorContext"/>
-		<property name="hmsCache" ref="hmsCache" />
-		<property name="hmsParameters" ref="hmsParametersBean" />
-		<property name="alerter" ref="alerter" />
-	</bean>
+		class="higiebus.adaptors.hms.uvis.events.processors.HospitalCensusProcessor"
+		parent="abstractProcessorBean"/>
+
 	<bean id="hmsSessionFactoryBean"
 		class="org.springframework.orm.hibernate3.LocalSessionFactoryBean">
-		<property name="dataSource" ref="hmsDataSource" />
-		<property name="cacheProvider" ref="cacheProvider" />
+		<property name="dataSource" ref="hmsDataSourceBean" />
+		<property name="cacheProvider" ref="cacheProviderBean" />
 		<property name="hibernateProperties">
 			<props>
 				<prop key="hibernate.dialect">org.hibernate.dialect.HSQLDialect

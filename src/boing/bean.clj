@@ -64,8 +64,8 @@
 
 (defn- register-singleton
   "Register a singleton in the cache in the current context."
-  [id instance]
-    (swap! *singletons* #(merge %1 %2) { (singleton-name id) instance}))
+  [id beandef instance]
+    (swap! *singletons* #(merge %1 %2) { (singleton-name id) {:beandef beandef :instance instance}}))
  
 
 (defn- valid-bean-setters?
@@ -74,16 +74,17 @@
    Returns all the setters it found."
   [bean-id java-class properties]
   (let [setters (find-setters java-class)]
-    (into {} (map #(let [setter (% setters)
-                         property (% properties)
-                         value (if (nil? property) nil property)]
-                     (cond (nil? (% setters))
-                           (throw (Exception. (format "No setter for property %s in class %s" % java-class)))
-                           :else
-                           (do
-                             (if (not (nil? property)) (valid-method-sig? java-class setter [property]))
-                             { % {:setter setter :bean-id bean-id :property % :value property
-                                  :mth-arg-classes (reduce conj [] (.getParameterTypes setter))}}))) (keys properties)))))
+    (persistent!
+      (reduce conj! (transient {}) (map #(let [setter (% setters)
+                          property (% properties)
+                          value (if (nil? property) nil property)]
+                      (cond (nil? (% setters))
+                            (throw (Exception. (format "No setter for property %s in class %s" % java-class)))
+                            :else
+                            (do
+                              (if (not (nil? property)) (valid-method-sig? java-class setter [property]))
+                              { % {:setter setter :bean-id bean-id :property % :value property
+                                   :mth-arg-classes (reduce conj [] (.getParameterTypes setter))}}))) (keys properties))))))
 (defn- to-class
   "Classes in bean definitions can be expressed as classes, keywords or strings.
    This function normalizes these to Class objects."
@@ -169,14 +170,17 @@
   [beandef]
   (try
     (if-let [singleton (singleton? beandef)]
-	    singleton
+      ;; If the singleton overrides it's class, we need to call the post fn
+      (if-let [override (:class-override (:beandef singleton))]
+        (invoke-wrapper beandef "post-function" ((:post (:beandef singleton)) (:instance singleton)))
+        (:instance singleton))
 	    (let [{:keys [constructor c-args setters pre post init id mode] } beandef
             instance (invoke-constructor constructor (map #(if (nil? %) nil (get-value %)) c-args))]
        (binding [*current-bean* id]
          (if-not (nil? pre) (invoke-wrapper beandef "pre-function" (pre instance)))
          (dorun (map (fn [e] (invoke-wrapper beandef "Setter" (apply-setter instance (val e)))) setters))
          (if-not (nil? init) (invoke-wrapper beandef "Initialization" (invoke-method instance init)))
-         (if (= mode :singleton) (register-singleton id instance))
+         (if (= mode :singleton) (register-singleton id beandef instance))
          (if-not (nil? post)       ;; The post fn return value is returned as the object instance
            (invoke-wrapper beandef "post-function" (post instance)) 
            instance))))

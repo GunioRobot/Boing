@@ -132,18 +132,18 @@
    We assume that there is only one setter per property. This may be too simplistic however.
    Next release will index by property name and signature."
   [java-class]
-  (reduce #(if (nil? %2) %1 (conj %1 %2)) {}
-          (map (fn [mth]
-                 (let [properties (bean mth)
-                       modifiers (:modifiers properties)
-                       mth-name (:name properties)
-                       static? (pos? (bit-and modifiers Modifier/STATIC))]
-                   (cond
-                     static? {}
-                     (setter? mth-name)
-                     { (setter-to-prop mth-name) mth}
-                     :else {})))
-               (get-reflection-info java-class :declaredMethods))))
+  (persistent! (reduce #(if (nil? %2) %1 (conj! %1 %2))  (transient {})
+                       (map (fn [mth]
+                              (let [properties (bean mth)
+                                    modifiers (:modifiers properties)
+                                    mth-name (:name properties)
+                                    static? (pos? (bit-and modifiers Modifier/STATIC))]
+                                (cond
+                                  static? {}
+                                  (setter? mth-name)
+                                  { (setter-to-prop mth-name) mth}
+                                  :else {})))
+                            (get-reflection-info java-class :declaredMethods)))))
 
 (defn find-setters
   "Return all the setter methods for this class and its super classes
@@ -185,19 +185,19 @@
 (defn- filter-class-methods
   "Filter methods matching signatures in the given class."
   ([java-class args]
-    (reduce #(if (nil? %2) %1 (conj %1 %2)) []
+    (persistent! (reduce #(if (nil? %2) %1 (conj! %1 %2)) (transient [])
             (map (fn [mth]
                    (if (= (.getDeclaringClass mth) java-class)
                      (if (valid-args? java-class args (apply vector (.getParameterTypes mth))) mth)))
-                 (get-reflection-info java-class :declaredMethods))))
+                 (get-reflection-info java-class :declaredMethods)))))
   ([java-class args mth-name]
     (let [pattern (re-pattern mth-name)]
-      (reduce #(if (nil? %2) %1 (conj %1 %2)) []
+      (persistent! (reduce #(if (nil? %2) %1 (conj! %1 %2)) (transient [])
               (map (fn [mth]
                      (if (= (.getDeclaringClass mth) java-class)
                        (if (re-find pattern (.getName mth))
                          (if (valid-args? java-class args (apply vector (.getParameterTypes mth))) mth))))
-                   (get-reflection-info java-class :declaredMethods))))))
+                   (get-reflection-info java-class :declaredMethods)))))))
 
 (defn find-methods
   "Find methods matching a signature for the given args including in super classes."

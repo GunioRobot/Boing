@@ -30,7 +30,8 @@
     (try 
       (if (nil? class)
         (if-let [url (find-url respath)]
-          (cond (= (.getProtocol url) "file") (-> (File. (.toURI url)) (.list))
+          (cond (= (.getProtocol url) "file") 
+                (persistent! conj! (transient []) (-> (File. (.toURI url)) (.list)))
                 :else (throw (UnsupportedOperationException.
                                (format "Cannot list files for url %s" url))))
           ())
@@ -38,8 +39,9 @@
           (cond (= (.getProtocol url) "jar")
                 (if-let [jar-file (access-jar url)]
                   (if (nil? pattern)
-                    (doall (map #(.getName %) (enumeration-seq (.entries jar-file))))
-                    (doall (remove nil? (map (fn [e] (if (.matches (.getName e) pattern) (.getName e))) (enumeration-seq (.entries jar-file))))))))))
+                    (persistent! (reduce conj! (transient []) (map #(.getName %) (enumeration-seq (.entries jar-file)))))
+                    (persistent! (reduce #(if (nil? %1) %1 (conj! %1 %2)) (transient [])
+                                         (map (fn [e] (if (.matches (.getName e) pattern) (.getName e))) (enumeration-seq (.entries jar-file))))))))))
     (catch Exception e# (throw e#)))))
 
 (defn load-properties
@@ -48,6 +50,6 @@
     (if-let [resource-url (find-url res-name)]
       (with-open [stream (input-stream resource-url)]
         (let [properties (doto (Properties.) (.load stream))]
-          (into {}  (map (fn [[k v]] { (keyword k) v}) properties))))
+          (persistent! conj! (transient {})  (map (fn [[k v]] { (keyword k) v}) properties))))
       {})))
       
