@@ -64,7 +64,7 @@
 	
 	(defn-memo list-mappings
 	  "Load Hibernate mappings from the corresponding jar file."
-	  [] (enum-resources "uvis/dao/mappings" :class higiebus.adaptors.hms.HMSParameters :pattern  "uvis/dao/mappings/.*[.]xml"))
+	  [] (enum-resources "uvis/dao/mappings" :from-class higiebus.adaptors.hms.HMSParameters :pattern  "uvis/dao/mappings/.*[.]xml"))
 	
 	(defbean :hmsSessionFactoryBean "org.springframework.orm.hibernate3.LocalSessionFactoryBean"
 	  :mode :singleton
