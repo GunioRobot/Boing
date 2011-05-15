@@ -7,11 +7,10 @@
     "Testing finders and validations"
     (is (= (into (sorted-map)
                  (map (fn [[k v]] { k (.getName v)}) (find-setters boing.test.SimpleClass)))
-           {:boolVal "setBoolVal", :byteVal "setByteVal", :charVal "setCharVal",
-            :doubleVal "setDoubleVal", :floatVal "setFloatVal", :intVal "setIntVal",
-            :listVal "setListVal", :longVal "setLongVal", :mapVal "setMapVal",
-            :objectVal "setObjectVal", :privateParentVal "setPrivateParentVal",
-            :props "setProps", :shortVal "setShortVal", :stringVal "setStringVal"}))
+           {:boolVal "setBoolVal", :byteVal "setByteVal", :charVal "setCharVal", :doubleVal "setDoubleVal",
+            :floatVal "setFloatVal", :intVal "setIntVal", :listVal "setListVal", :longVal "setLongVal",
+            :mapVal "setMapVal", :objectVal "setObjectVal", :privateParentVal "setPrivateParentVal",
+            :props "setProps", :shortVal "setShortVal", :stringVal "setStringVal", :vector "setVector"} ))
     
     (is (= (into [] (sort (map #(.getName %) (find-methods boing.test.SimpleClass [(int 1)]))))
            ["setIntVal" "setPrivateParentVal"]))

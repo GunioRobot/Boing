@@ -1,5 +1,6 @@
 (ns boing.test.test-bean
-  (:use [boing.bean] [boing.context] [clojure.test] [clojure.contrib.trace]))
+  (:use [boing.bean] [boing.context] [clojure.test] [clojure.pprint]
+        [clojure.contrib.trace]))
 
 (deftest test-noargs-beandef []
   (testing
@@ -241,7 +242,7 @@
 
 (deftest test-setters-properties-class []
     (testing
-      "Test bean creation with Properties args using setters"
+      "Test bean creation with Properties autopromotion using setters"
       (let [mapval { :a 1 :b 2}
             first-bean (defabean boing.test.SimpleClass
                          :s-vals {:props mapval})]
@@ -250,10 +251,72 @@
 
 (deftest test-constructors-properties-class []
     (testing
-      "Test bean creation with Properties args using constructors"
+      "Test bean creation with Properties autopromotion using constructors"
       (let [mapval { :a 1 :b 2}
             first-bean (defabean boing.test.SimpleClass
                          :c-args [ mapval])]
         (is (= (.toString (create-bean first-bean)) "0:0:0:0:null:0.0:0.0:\\u0000:false:{b=2, a=1}")))))
 
+(deftest test-setters-vector-class []
+    (testing
+      "Test bean creation with Vector autopromotion using setters"
+      (let [vecval [ 1 2 3 4 5]
+            first-bean (defabean boing.test.SimpleClass
+                         :s-vals {:vector vecval})]
+        (is (= (.toString (create-bean first-bean)) "0:0:0:0:null:0.0:0.0:\\u0000:false:[1, 2, 3, 4, 5]")))))
+
+
+(deftest test-constructors-vector-class []
+    (testing
+      "Test bean creation with Vector autopromotion using constructors"
+      (let [vecval [ 1 2 3 4 5]
+            first-bean (defabean boing.test.SimpleClass
+                         :c-args [ vecval])]
+        (is (= (.toString (create-bean first-bean)) "0:0:0:0:null:0.0:0.0:\\u0000:false:[1, 2, 3, 4, 5]")))))
+
+(deftest test-instantiate-all-singletons []
+  (testing
+    "Test instantiation of all singletons at once"
+    (let [ctx (keyword (gensym "ctx-"))] ;; To make sure we have a fresh context at each test run
+      (with-context ctx
+        (let [singleton-bean-1 (defbean :s1 boing.test.SimpleClass :mode :singleton
+                                 :c-args [ { :a 1 :b 2}])
+              singleton-bean-2 (defbean :s2 boing.test.SimpleClass :mode :singleton
+                                 :c-args [ { :a 3 :b 4}])
+              singleton-bean-3 (defbean :s3 boing.test.SimpleClass :mode :singleton
+                                 :c-args [ { :a 5 :b 6}])
+              singletons (create-singletons)]
+          (is (= (apply str singletons)
+                 "[:s3 #<SimpleClass 0:0:0:0:null:0.0:0.0:\\u0000:false:{b=6, a=5}>][:s2 #<SimpleClass 0:0:0:0:null:0.0:0.0:\\u0000:false:{b=4, a=3}>][:s1 #<SimpleClass 0:0:0:0:null:0.0:0.0:\\u0000:false:{b=2, a=1}>]")))))))
+
+(deftest test-aliases []
+  (testing
+    "Test instantiation using property aliases"
+    (let [ctx (keyword (gensym "ctx-"))]  ;; To make sure we have a fresh context at each test run
+      (with-context-aliases ctx {:b :byteVal :i :intVal :f :floatVal}
+        (let [first-bean (defbean :test-bean-2 boing.test.SimpleClass
+                           :s-vals {:b (byte 1) :i (int 3) :f (float 4.3)})]
+        (is (= (.toString (create-bean first-bean)) "1:0:3:0:null:4.3:0.0:\\u0000:false"))
+        (is (= (.toString (create-bean first-bean {:b (byte 3)})) "3:0:3:0:null:4.3:0.0:\\u0000:false")))))))
+
+(deftest test-auto-promotion []
+  (testing
+    "Test instantiation using property aliases"
+    (let [ctx (keyword (gensym "ctx-"))]  ;; To make sure we have a fresh context at each test run
+      (auto-promote
+        boing.test.SimpleClass java.util.Properties
+        (fn [this target-class]
+          (cond
+            (= target-class java.util.Properties)
+            (let [java-props (java.util.Properties.)]
+              (doto (java.util.Properties.)
+                (.put "byte value" (.getByteVal this))
+                (.put "long value" (.getLongVal this))))
+            :else this)))
+      (with-context ctx 
+        (let [first-bean (defbean :test-bean-1 boing.test.SimpleClass
+                           :s-vals {:byteVal (byte 1) :intVal (int 3) :longVal (long 4)})
+              second-bean (defbean :test-bean-2 boing.test.SimpleClass
+                           :s-vals {:props :test-bean-1})]
+        (is (= (.toString (create-bean second-bean)) "0:0:0:0:null:0.0:0.0:\\u0000:false:{byte value=1, long value=4}")))))))
 

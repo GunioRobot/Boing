@@ -3,6 +3,7 @@ package boing.test;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Vector;
 
 import org.apache.commons.lang.StringEscapeUtils;
 
@@ -35,9 +36,22 @@ public class SimpleClass extends SimpleClassParent{
 	private Map mapVal;
 	@SuppressWarnings("unused")
 	private Properties props;
+	@SuppressWarnings("unused")
+	private Vector vector;
+	
+	public void setVector(Vector vector) {
+		this.vector = vector;
+	}
+
+	public byte getByteVal() {
+		return byteVal;
+	}
+
+	public long getLongVal() {
+		return longVal;
+	}
 	
 	public void setProps(Properties props) {
-		System.out.println("In Simple Class properties setter");
 		this.props = props;
 	}
 
@@ -190,6 +204,11 @@ public class SimpleClass extends SimpleClassParent{
 		this.props = props;
 	}
 	
+	public SimpleClass(Vector vector) {
+		super();
+		this.vector = vector;
+	}
+	
 	public SimpleClass(Object objectVal) {
 		super();
 		this.objectVal = objectVal;
@@ -204,6 +223,8 @@ public class SimpleClass extends SimpleClassParent{
 			value += COLON + mapVal;
 		if (props != null) 
 			value += COLON + props;	
+		if (vector != null)
+			value += COLON + vector;
 		return value;
 	}
 	

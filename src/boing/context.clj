@@ -3,9 +3,9 @@
     [clojure.contrib.def]
     [clojure.contrib.trace]))
 
-(defrecord Context [id beandefs])
+(defrecord Context [id aliases beandefs])
 
-(defvar- *contexts* (atom {:default (Context. :default {})}))
+(defvar- *contexts* (atom {:default (Context. :default {} {})}))
 
 (defvar *current-context* :default)  ;; This can be rebound on the fly
 
@@ -26,9 +26,8 @@
   ([beandef]
     (if-let [ctx (*current-context* @*contexts*)]
       (swap! *contexts* #(merge %1 %2)
-        {*current-context* (Context. *current-context* (assoc (:beandefs ctx) (:id beandef) beandef))})
-      (throw (Exception. (format "No such context %s" *current-context*))))
-    ))
+        {*current-context* (assoc-in ctx [:beandefs (:id beandef)] beandef)})
+      (throw (Exception. (format "No such context %s" *current-context*))))))
 
 (defn get-bean-ids
   "Return the ids of the bean definitions in the current context."
@@ -44,10 +43,12 @@
 (defn add-context
   "Registers a new empty bean context if it does not exists and returns it.
    Otherwise returns the context found."
-  [ctx-id]
-  (if-let [ctx (context? (keyword ctx-id))]
-    (swap! *contexts* #(merge %1 %2) { (keyword ctx-id) {}})
-    (swap! *contexts* #(merge %1 %2) { (keyword ctx-id) (Context. ctx-id {})})))
+  ([ctx-id] (add-context ctx-id {}))
+  
+  ([ctx-id aliases] 
+    (if-let [ctx (context? (keyword ctx-id))] ctx
+      (do (swap! *contexts* #(merge %1 %2) { (keyword ctx-id) (Context. ctx-id aliases {})})
+        (get-context (keyword ctx-id))))))
 
 (defn merge-contexts
   "Merge bean definitions of two contexts.

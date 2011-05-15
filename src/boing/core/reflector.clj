@@ -2,11 +2,9 @@
   "Reflection utility routines"
   (:require [clojure.string :as s])
   (:use
-    [clojure.pprint]
-    [clojure.stacktrace]
-    [clojure.contrib.def]
-    [clojure.contrib.trace])
-  (:import [java.lang.reflect Modifier InvocationTargetException] [boing Util]))
+    [clojure.pprint] [clojure.stacktrace]
+    [clojure.contrib.def] [clojure.contrib.trace])
+  (:import [java.lang.reflect Modifier InvocationTargetException] [boing.core Util]))
 
 
 (defvar- +setter-prefixes+ ["set" "add"])
