@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project>
   <modelVersion>4.0.0</modelVersion>
-  <groupId>Boing</groupId>
-  <artifactId>Boing</artifactId>
-  <version>1.0</version>
-  <name>Boing</name>
+  <groupId>boing</groupId>
+  <artifactId>boing</artifactId>
+  <version>1.1</version>
+  <name>boing</name>
+  <scm>
+    <tag>ab948f44823aa87f6dfccd128935d160e6ac06fc</tag>
+  </scm>
   <build>
     <sourceDirectory>src</sourceDirectory>
     <testSourceDirectory>test</testSourceDirectory>
@@ -20,10 +23,6 @@
     </testResources>
   </build>
   <repositories>
-    <repository>
-      <id>internal</id>
-      <url>http://repo.softaddicts.ca:8080/archiva/repository/internal</url>
-    </repository>
     <repository>
       <id>central</id>
       <url>http://repo1.maven.org/maven2</url>
