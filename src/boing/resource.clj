@@ -1,7 +1,7 @@
 (ns boing.resource
   "This module provides a basic interface to resource loading."
   (:require [clojure.string :as s])
-  (:use [clojure.stacktrace] [clojure.contrib.trace] [clojure.java.io])
+  (:use [clojure.stacktrace] [clojure.java.io])
   (:import [java.util.jar JarFile] [java.net URLDecoder]
            [java.lang ClassLoader] [java.io File] [java.util Properties]))
 
@@ -66,7 +66,7 @@
         (cond (nil? from-class)
               (input-stream resource-url)
               :else
-              (do (trace respath) (.getResourceAsStream from-class respath))))
+              (do respath (.getResourceAsStream from-class respath))))
       (catch Exception e# (print-cause-trace e#) (throw e#)))))
  
       

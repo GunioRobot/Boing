@@ -3,7 +3,7 @@
   (:require [clojure.string :as s])
   (:use
     [clojure.pprint] [clojure.stacktrace]
-    [clojure.contrib.def] [clojure.contrib.trace])
+    [clojure.contrib.def])
   (:import [java.lang.reflect Modifier InvocationTargetException] [boing.core Util]))
 
 
