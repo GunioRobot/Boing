@@ -5,7 +5,9 @@
   (:import [java.util.jar JarFile] [java.net URLDecoder]
            [java.lang ClassLoader] [java.io File] [java.util Properties]))
 
-(deftrace find-url
+;;(defvar- *font-cache* (Atom {}))
+
+(defn find-url
   ;;"Return the URL of a given resource."
   [respath]
   (try
@@ -56,7 +58,7 @@
         {})
       (catch Exception e# (print-cause-trace e#) (throw e#)))))
       
-(deftrace get-input-stream
+(defn get-input-stream
   ;;"Get an input stream on a resource"
   ([respath & {:keys [from-class]}]
     (try 
