@@ -11,5 +11,9 @@
 * Allow a caller to add argument auto-promotions
 * Added resource input streams
 
+### 1.2 (2011-06-17)
+
+* Added a Java API to load bean definitions written in Clojure and to instantiate beans
+
 
 

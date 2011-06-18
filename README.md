@@ -23,11 +23,6 @@ various examples applied in various spots in our code.
 
 The next step(s) we envisionned:
 
-- Get this usable from Java. This step will allow us to decouple
-  our Java legacy from Spring beans.
-  
-- Improve resource loading. Right now the implementation is minimal.
-
 - Experiment with other Java centric stuff that will not have equivalents
   in Clojure for a while. Suggestions are welcomed.
 
