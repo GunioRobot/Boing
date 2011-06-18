@@ -11,13 +11,14 @@
               :methods [#^{:static true} [loadBeandefs [Object] void]
                         #^{:static true} [loadBeandefs [Object Object] void]                  
                         #^{:static true} [createBean [String] Object]
-                        #^{:static true} [createBean [String java.util.Map] Object]
-                        #^{:static true} [createBean [String java.util.Map java.util.Map] Object]
+                        #^{:static true} [createBean [String java.util.List] Object]
+                        #^{:static true} [createBean [String java.util.List java.util.List] Object]
                         #^{:static true} [createBeanFromContext [String String] Object]
-                        #^{:static true} [createBeanFromContext [String String java.util.Map] Object]
-                        #^{:static true} [createBeanFromContext [String String java.util.Map java.util.Map] Object]
-                        #^{:static true} [createSingletons [] java.util.Map]
-                        #^{:static true} [createSingletons [String] java.util.Map]]))
+                        #^{:static true} [createBeanFromContext [String String java.util.List] Object]
+                        #^{:static true} [createBeanFromContext [String String java.util.List java.util.List] Object]
+                        #^{:static true} [createSingletons [] java.util.List]
+                        #^{:static true} [createSingletons [java.util.List] java.util.List]
+                        #^{:static true} [createSingletons [String java.util.List] java.util.List]]))
 
 (defvar- *runtime-overrides* {})
 (defvar- *aliases* {})
@@ -268,8 +269,8 @@
    This allows to debug eventual instantiation failures instead
    of waiting for a bean instatiation that may occur very late.
    Only global overrides can be provided when calling this fn."
-  ([] (create-singletons {} {}))
-  ([bean-overrides global-overrides]
+  ([] (create-singletons {}))
+  ([global-overrides]
     (try
       (let [ctx (get-context *current-context*)]
         (binding [*runtime-overrides* (merge *runtime-overrides* global-overrides)
@@ -339,13 +340,14 @@
    For global overrides we need to recurse down one level since we may have a map of overrides for each bean.
    The second entry point here is to prevent recursing down one level when we convert local overrides for the bean
    we area instantiating."
-  ([java-map]
-    (if (nil? java-map) {}
-      (persistent! (reduce #(if (nil? %2) %1 (assoc! %1 (keyword (name (key %2))) (to-keyword-map (val %2) true)))  (transient {}) java-map))))
-  ([java-map one-level]
-    (if (nil? java-map) {}
-      (if-not (instance? java.util.Map java-map) java-map
-        (persistent! (reduce #(if (nil? %2) %1 (assoc! %1 (keyword (name (key %2))) (val %2)))  (transient {}) java-map))))))
+  ([java-list]
+    (if (nil? java-list) {}
+      (persistent! (reduce #(if (nil? %2) %1 (assoc! %1 (keyword (name (key %2)))
+                                                     (to-keyword-map (val %2) true)))  (transient {}) (apply hash-map java-list)))))
+  ([java-list one-level]
+    (if (nil? java-list) {}
+      (if-not (instance? java.util.List java-list) java-list
+        (persistent! (reduce #(if (nil? %2) %1 (assoc! %1 (keyword (name (key %2))) (val %2)))  (transient {}) (apply hash-map java-list)))))))
     
 (defn -createBeanFromContext
   "Instantiate a bean from a definition in a specific context
@@ -353,9 +355,9 @@
    This is a Java entry point so Java caller can instantiate Boing bean definitions.
    Context name and bean name have to be passed as a string since Clojure keywords are unknown to Java."
   ([^String ctx-name ^String bean-name] (with-context (keyword (name ctx-name)) (create-bean (keyword (name bean-name)))))
-  ([^String ctx-name ^String bean-name ^java.util.Map bean-overrides]
+  ([^String ctx-name ^String bean-name ^java.util.List bean-overrides]
     (with-context (keyword (name ctx-name)) (create-bean (keyword (name bean-name)) (to-keyword-map bean-overrides true))))
-  ([^String ctx-name ^String bean-name ^java.util.Map bean-overrides ^java.util.Map global-overrides]
+  ([^String ctx-name ^String bean-name ^java.util.List bean-overrides ^java.util.List global-overrides]
     (with-context (keyword (name ctx-name))
       (create-bean (keyword (name bean-name))  (to-keyword-map bean-overrides true)
                    (to-keyword-map global-overrides)))))
@@ -366,9 +368,9 @@
    This is a Java entry point so Java caller can instantiate Boing bean definitions."
 
   ([^String bean-name] (create-bean (keyword (name bean-name))))
-  ([^String bean-name ^java.util.Map bean-overrides]
+  ([^String bean-name ^java.util.List bean-overrides]
     (create-bean (keyword (name bean-name)) (to-keyword-map bean-overrides true)))
-  ([^String bean-name ^java.util.Map bean-overrides ^java.util.Map global-overrides]
+  ([^String bean-name ^java.util.List bean-overrides ^java.util.List global-overrides]
     (create-bean (keyword (name bean-name))  (to-keyword-map bean-overrides true)
                  (to-keyword-map global-overrides))))
 
@@ -377,5 +379,6 @@
   "Instantiate all singletons in the currrent/given context.
    This is a Java entry point so Java caller can access Boing bean definitions.
    Context name has to be passed as a string since Clojure keywords are unknown to Java."
-   ([] (create-singletons))
-   ([^String ctx-name] (with-context (keyword (name ctx-name)) (create-singletons)))) 
+  ([] (create-singletons))
+  ([^java.util.List global-override] (create-singletons (to-keyword-map global-overrides)))
+  ([^String ctx-name ^java.util.List global-override] (with-context (keyword (name ctx-name)) (create-singletons (to-keyword-map global-overrides))))) 
