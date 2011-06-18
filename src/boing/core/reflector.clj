@@ -10,15 +10,15 @@
 (defvar- +setter-prefixes+ ["set" "add"])
 (defvar- +array-fn+
   {
-   (java.lang.Class/forName "[Ljava.lang.String;") (fn [s] (into-array java.lang.String s))
-   (java.lang.Class/forName "[I") (fn [s] (int-array s))
-   (java.lang.Class/forName "[J") (fn [s] (long-array s))
-   (java.lang.Class/forName "[S") (fn [s] (short-array s))
-   (java.lang.Class/forName "[B") (fn [s] (byte-array s))
-   (java.lang.Class/forName "[C") (fn [s] (char-array s))   
-   (java.lang.Class/forName "[Z") (fn [s] (boolean-array s)) 
-   (java.lang.Class/forName "[F") (fn [s] (float-array s))
-   (java.lang.Class/forName "[D") (fn [s] (double-array s))
+   (Class/forName "[Ljava.lang.String;") (fn [s] (into-array String s))
+   (Class/forName "[I") (fn [s] (int-array s))
+   (Class/forName "[J") (fn [s] (long-array s))
+   (Class/forName "[S") (fn [s] (short-array s))
+   (Class/forName "[B") (fn [s] (byte-array s))
+   (Class/forName "[C") (fn [s] (char-array s))   
+   (Class/forName "[Z") (fn [s] (boolean-array s)) 
+   (Class/forName "[F") (fn [s] (float-array s))
+   (Class/forName "[D") (fn [s] (double-array s))
    })
 
 
@@ -28,7 +28,7 @@
   "Extract from the cache the required item for the given class."
   [java-class item]
   (try 
-    (let [hashcode (java.lang.System/identityHashCode java-class)]
+    (let [hashcode (System/identityHashCode java-class)]
       (if-let [item-cached (item (get @*reflection-cache* hashcode))]
         item-cached
         (item (get (swap! *reflection-cache* #(merge %1 %2)
@@ -38,7 +38,7 @@
 (defn- update-reflection-info
   "Update the cache for the given class and returns the added map entry."
   [java-class item values]
-  (let [hashcode (java.lang.System/identityHashCode java-class)
+  (let [hashcode (System/identityHashCode java-class)
         entry {item values}]
     (swap! *reflection-cache* #(merge %1 %2) {hashcode (merge (get *reflection-cache* java-class) entry)})
     entry))
@@ -55,7 +55,7 @@
 
 (defprotocol BoingReflector
   "This protocol helps the reflector to adapt Clojure values to java setter argument signatures."
-  (to-java-arg [x target-class]))
+  (to-java-arg [this target-class]))
 
 (extend-type clojure.lang.LazySeq
   BoingReflector
@@ -108,7 +108,7 @@
       (= target-class java.util.Properties) (map-to-properties this)
       :else this)))
 
-(extend-type java.lang.Object
+(extend-type Object
   BoingReflector
   (to-java-arg [this target-class] this))
 
@@ -201,11 +201,11 @@
   "Find methods matching a signature for the given args including in super classes."
   ([java-class args]
     (loop [cl java-class mths (transient [])]
-      (if (= cl java.lang.Object) (persistent! mths)
+      (if (= cl Object) (persistent! mths)
         (recur (get-reflection-info cl :superclass) (reduce conj! mths (filter-class-methods cl args))))))
   ([java-class args mth-name]
     (loop [cl java-class mths (transient [])]
-      (if (= cl java.lang.Object) (persistent! mths)
+      (if (= cl Object) (persistent! mths)
         (recur (get-reflection-info cl :superclass) (reduce conj! mths (filter-class-methods cl args mth-name)))))))
 
 (defn valid-method-sig?
@@ -217,7 +217,7 @@
   [java-class args]
   (try 
     (loop [cl java-class ctors (transient [])]
-      (if (= cl java.lang.Object) (persistent! ctors)
+      (if (= cl Object) (persistent! ctors)
         (recur (get-reflection-info cl :superclass) 
                (reduce #(if (nil? %2) %1 (conj! %1 %2)) ctors
                        (map (fn [ctor]

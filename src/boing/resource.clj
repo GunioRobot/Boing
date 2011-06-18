@@ -1,19 +1,19 @@
 (ns boing.resource
   "This module provides a basic interface to resource loading."
   (:require [clojure.string :as s])
-  (:use [clojure.stacktrace] [clojure.java.io])
+  (:use [clojure.stacktrace] [clojure.java.io] [clojure.contrib.trace])
   (:import [java.util.jar JarFile] [java.net URLDecoder]
            [java.lang ClassLoader] [java.io File] [java.util Properties]))
-
-;;(defvar- *font-cache* (Atom {}))
 
 (defn find-url
   ;;"Return the URL of a given resource."
   [respath]
   (try
-    (if-let [url (ClassLoader/getSystemResource respath)] url
-      (java.net.URL. respath))
-    (catch Exception e# (print-cause-trace e#) (throw (Exception. (format "Cannot find URL for resource path %s:%s" respath (.getCause e#)))))))
+    (if (instance? java.net.URL respath) respath
+      (if-let [url (ClassLoader/getSystemResource respath)] url
+        (java.net.URL. respath)))
+    (catch Exception e#
+      (print-cause-trace e#) (throw (Exception. (format "Cannot find URL for resource path %s:%s" respath (.getCause e#)))))))
 
 (defn- access-jar
   "Access a jar file from a url and return a JarFile object to access it"
@@ -24,7 +24,7 @@
     (JarFile. (URLDecoder/decode jar-path "UTF-8"))))
 
 (defn enum-resources
-  "List resources in the given folder.
+  "List resources in the given resource folder.
    If resources are in a jar file, a class in the jar file must be provided so
    it can be located on the classpath.
    A regex pattern can be provided as a string to filter the resources by their names."
@@ -47,19 +47,10 @@
                                          (map (fn [e] (if (.matches (.getName e) pattern) (.getName e))) (enumeration-seq (.entries jar-file))))))))))
     (catch Exception e# (print-cause-trace e#) (throw e#)))))
 
-(defn load-properties
-  "Load a property file as a map."
-  ([respath]
-    (try 
-      (if-let [resource-url (find-url respath)]
-        (with-open [stream (input-stream resource-url)]
-          (let [properties (doto (Properties.) (.load stream))]
-            (persistent! (reduce conj! (transient {})  (map (fn [[k v]] { (keyword k) v}) properties)))))
-        {})
-      (catch Exception e# (print-cause-trace e#) (throw e#)))))
-      
 (defn get-input-stream
-  ;;"Get an input stream on a resource"
+  "Get an input stream on a resource.
+   if a class is provided, use it to find the resource specifically
+   in the class resource container (jar, class folder, ...."
   ([respath & {:keys [from-class]}]
     (try 
       (if-let [resource-url (find-url respath)]
@@ -68,5 +59,42 @@
               :else
               (do respath (.getResourceAsStream from-class respath))))
       (catch Exception e# (print-cause-trace e#) (throw e#)))))
+
+(defn load-properties
+  "Load a property resource file as a map."
+  ([respath & {:keys [from-class]}]
+    (try 
+      (if-let [resource-url (find-url respath)]
+        (with-open [stream (get-input-stream resource-url :from-class from-class)]
+          (let [properties (doto (Properties.) (.load stream))]
+            (persistent! (reduce conj! (transient {})  (map (fn [e] { (keyword (key e)) (val e)}) properties)))))        
+        {})
+      (catch Exception e# (print-cause-trace e#) (throw e#)))))
+     
+(defn load-text-resource
+  "Load a resource file as a string."
+  [respath & {:keys [encoding from-class]}]
+    (try 
+      (if-let [resource-url (find-url respath)]
+        (with-open [rdr (reader (get-input-stream resource-url :from-class from-class))]
+          (reduce #(str %1 %2) "" (line-seq rdr))))
+      (catch Exception e# (print-cause-trace e#) (throw e#))))
+
+(defn load-and-eval
+  "Load a clojure resource file and evaluate it."
+  ([respath]
+    (try 
+      (load-and-eval respath (str (.getName *ns*)))
+      (catch Exception e# (print-cause-trace e#) (throw e#))))
+    ([respath namespace-name]
+      (try 
+        (let [nsname (cond (instance? clojure.lang.Namespace namespace-name) (str (.getName namespace-name))
+                           (instance? String namespace-name) namespace-name
+                           :else (throw (Exception. (format "load-and-eval: not a namespace: %s" namespace-name))))
+              file-content (load-text-resource respath)
+              code (str "(in-ns '" nsname ") " file-content " (in-ns '" (.name *ns*) ") ")]
+          (load-string  code))
+        (catch Exception e# (print-cause-trace e#) (throw e#)))))
+
  
       

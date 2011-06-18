@@ -4,9 +4,20 @@
    Bean definitions trigger a search for constructors and setters of the given class.
    Instanciation of a bean can be done using create-bean on a bean definition."
   (:use
-    [boing.core.reflector] [boing.context] [clojure.stacktrace]
+    [boing.core.reflector] [boing.context] [boing.resource] [clojure.stacktrace]
     [clojure.contrib.def]
-    [clojure.contrib.trace]))
+    [clojure.contrib.trace])
+  (:gen-class :name boing.Bean
+              :methods [#^{:static true} [loadBeandefs [Object] void]
+                        #^{:static true} [loadBeandefs [Object Object] void]                  
+                        #^{:static true} [createBean [String] Object]
+                        #^{:static true} [createBean [String java.util.Map] Object]
+                        #^{:static true} [createBean [String java.util.Map java.util.Map] Object]
+                        #^{:static true} [createBeanFromContext [String String] Object]
+                        #^{:static true} [createBeanFromContext [String String java.util.Map] Object]
+                        #^{:static true} [createBeanFromContext [String String java.util.Map java.util.Map] Object]
+                        #^{:static true} [createSingletons [] java.util.Map]
+                        #^{:static true} [createSingletons [String] java.util.Map]]))
 
 (defvar- *runtime-overrides* {})
 (defvar- *aliases* {})
@@ -103,9 +114,9 @@
 	  (cond
 	    (class? java-class) java-class
 	    (keyword?  java-class)
-	    (java.lang.Class/forName (name java-class))
-	    (instance? java.lang.String java-class)
-	    (java.lang.Class/forName (name java-class))
+	    (Class/forName (name java-class))
+	    (instance? String java-class)
+	    (Class/forName (name java-class))
 	    :else
 	    (throw (Exception. (format "Cannot get a class from %s" java-class))))
    (catch ClassNotFoundException e# (throw (Exception. (format "Class not found exception: %s" java-class))))
@@ -244,12 +255,12 @@
   ([]
     (if-let [ctx (get-context *current-context*)]
       (do (println (format "Summary of context %s" *current-context*))
-        (dorun (map (fn [[k v]] (println (format "Bean %s  %s\n%s\n" k (:java-class v) (:comments v))))
+        (dorun (map (fn [e] (println (format "Bean %s  %s\n%s\n" (key e) (:java-class (val e)) (:comments (val e)))))
                     (:beandefs ctx))))))
   ([ctx-id]
     (if-let [ctx (get-context ctx-id)]
       (do (println (format "Summary of context %s" ctx-id))
-        (dorun (map (fn [[k v]] (println (format "Bean %s  %s\n%s\n" k (:java-class v) (:comments v))))
+        (dorun (map (fn [e] (println (format "Bean %s  %s\n%s\n" (key e) (:java-class (val e)) (:comments (val e)))))
                     (:beandefs ctx)))))))
 
 (defn create-singletons
@@ -265,7 +276,7 @@
                   *aliases* (:aliases ctx)]
           (persistent!
             (reduce #(if (nil? %2) %1 (conj! %1 %2))
-                    (transient {}) (map (fn [[k v]] (if (= (:mode v) :singleton) {k (allocate-bean v)})) (:beandefs ctx))))))
+                    (transient {}) (map (fn [e] (if (= (:mode (val e)) :singleton) {(key e) (allocate-bean (val e))})) (:beandefs ctx))))))
       (catch Exception e#
         (print-stack-trace e# 1)
         (root-cause e#)))))
@@ -296,3 +307,75 @@
     (to-java-arg
       [this target-class] (impl this target-class))))
 
+(defn- eval-beandefs
+  "Evaluate bean definitions in the current context from the given resource(s).
+   Since this is used from the Java API, we test multiple parameter types to
+   act accordingly."
+  [bean-resources]
+  (cond (instance? String bean-resources) ;; Maybe a file name or URL string
+        (load-and-eval bean-resources)
+        (instance? java.net.URL bean-resources) ;; Strict URL
+        (load-and-eval bean-resources)
+        (instance? (class "[Ljava.lang.Object;") bean-resources) ;; An array of file names/string URLs and or URLs
+        (doall (map #(load-and-eval %) bean-resources))
+        (instance? (class "[Ljava.lang.String;") bean-resources) ;; An array of file names or string URLs
+        (doall (map #(load-and-eval %) bean-resources))
+        (instance? (class "[Ljava.net.URL;") bean-resources) ;; An array of URLs
+        (doall (map #(load-and-eval %) bean-resources)) 
+        :else (throw (Exception. (format "Cannot load Boing definitions from %s" bean-resources)))))  
+  
+(defn -loadBeandefs
+  "Load bean definitions from a clojure resource type.
+   The resource can be a file in the class path or a URL.
+   It can be loaded in a named context if required.
+   This is a Java entry point so Java caller can access Boing bean definitions.
+   Context name has to be passed as a string since Clojure keywords are unknown to Java."
+  ([bean-resources] (eval-beandefs bean-resources))
+  ([ctx-name bean-resources] (with-context (keyword (name ctx-name))  (eval-beandefs bean-resources))))
+
+
+(defn to-keyword-map
+  "Transform a Java override map to a Clojure map.
+   For global overrides we need to recurse down one level since we may have a map of overrides for each bean.
+   The second entry point here is to prevent recursing down one level when we convert local overrides for the bean
+   we area instantiating."
+  ([java-map]
+    (if (nil? java-map) {}
+      (persistent! (reduce #(if (nil? %2) %1 (assoc! %1 (keyword (name (key %2))) (to-keyword-map (val %2) true)))  (transient {}) java-map))))
+  ([java-map one-level]
+    (if (nil? java-map) {}
+      (if-not (instance? java.util.Map java-map) java-map
+        (persistent! (reduce #(if (nil? %2) %1 (assoc! %1 (keyword (name (key %2))) (val %2)))  (transient {}) java-map))))))
+    
+(defn -createBeanFromContext
+  "Instantiate a bean from a definition in a specific context
+   Override Java maps are converted to Clojure maps if needed.
+   This is a Java entry point so Java caller can instantiate Boing bean definitions.
+   Context name and bean name have to be passed as a string since Clojure keywords are unknown to Java."
+  ([^String ctx-name ^String bean-name] (with-context (keyword (name ctx-name)) (create-bean (keyword (name bean-name)))))
+  ([^String ctx-name ^String bean-name ^java.util.Map bean-overrides]
+    (with-context (keyword (name ctx-name)) (create-bean (keyword (name bean-name)) (to-keyword-map bean-overrides true))))
+  ([^String ctx-name ^String bean-name ^java.util.Map bean-overrides ^java.util.Map global-overrides]
+    (with-context (keyword (name ctx-name))
+      (create-bean (keyword (name bean-name))  (to-keyword-map bean-overrides true)
+                   (to-keyword-map global-overrides)))))
+
+(defn -createBean
+  "Instantiate a bean from a definition in the default context
+   Override Java maps are converted to Clojure maps if needed.
+   This is a Java entry point so Java caller can instantiate Boing bean definitions."
+
+  ([^String bean-name] (create-bean (keyword (name bean-name))))
+  ([^String bean-name ^java.util.Map bean-overrides]
+    (create-bean (keyword (name bean-name)) (to-keyword-map bean-overrides true)))
+  ([^String bean-name ^java.util.Map bean-overrides ^java.util.Map global-overrides]
+    (create-bean (keyword (name bean-name))  (to-keyword-map bean-overrides true)
+                 (to-keyword-map global-overrides))))
+
+
+(defn -createSingletons
+  "Instantiate all singletons in the currrent/given context.
+   This is a Java entry point so Java caller can access Boing bean definitions.
+   Context name has to be passed as a string since Clojure keywords are unknown to Java."
+   ([] (create-singletons))
+   ([^String ctx-name] (with-context (keyword (name ctx-name)) (create-singletons)))) 

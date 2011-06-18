@@ -1,5 +1,5 @@
 (ns examples.spring-to-boing-1
-  "This file is an example of recoding the sprin-1.xml file using boing.
+  "This file is an example of recoding the spring-1.xml file using boing.
    Some of the beans are in fact using some Spring classes but they are not relevant
    to Spring beans. It happens that the example used had some wired ORM related
    Spring objects used.
@@ -15,6 +15,8 @@
   
   (:use [boing.bean] [boing.context] [boing.resource]
         [clojure.contrib.def]))
+
+(set! *warn-on-reflection* true)
 
 ;; Global variables to rebind when creating beans
 (def *username* nil)
@@ -113,7 +115,7 @@
 ;; From now on using the above definitions is quite simple:
 (binding [*username* "testuser"
           *password* "testpassword"]
-  (java.lang.System/setProperty "higiebus.adaptors.hms.datasourceProperties","examples/fakedproperties.properties")
+  (System/setProperty "higiebus.adaptors.hms.datasourceProperties","examples/fakedproperties.properties")
   (time (let [processor (create-bean :AdmitPatientProcessorBean {} ;; No override for values in this bean
                                      ;; Some globally available overrides. :global is not a bean definition,
                                      ;; :hmsDataSourceBean is.

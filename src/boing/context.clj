@@ -1,12 +1,12 @@
 (ns boing.context
   (:use
+    [boing.resource]
     [clojure.contrib.def]
     [clojure.contrib.trace]))
 
 (defrecord Context [id aliases beandefs])
 
 (defvar- *contexts* (atom {:default (Context. :default {} {})}))
-
 (defvar *current-context* :default)  ;; This can be rebound on the fly
 
 (defn get-context
@@ -50,11 +50,12 @@
       (do (swap! *contexts* #(merge %1 %2) { (keyword ctx-id) (Context. ctx-id aliases {})})
         (get-context (keyword ctx-id))))))
 
-(defn merge-contexts
+(defn merge-contexts!
   "Merge bean definitions of two contexts.
    Beans with the same ids will be replaced by the instances in the 'from' context.
    returns nil.
-   If one of the context is undefined, throws an exception."
+   If one of the context is undefined, throws an exception.
+   Be warned, this mutates the 'to' context."
   [from to]
   (let [ctx-from (get-context from)
          ctx-to (get-context to)

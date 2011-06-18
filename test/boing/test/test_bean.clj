@@ -75,8 +75,8 @@
   (testing
     "Testing bean definitions with some options"
     (let [simple-bean (defbean :test-bean-1 boing.test.SimpleClass :pre (fn [x] )
-                        :post (fn [x] ) :class-override java.lang.Long)]
-      (is (= (:class-override simple-bean) java.lang.Long)))))
+                        :post (fn [x] ) :class-override Long)]
+      (is (= (:class-override simple-bean) Long)))))
 
 
 (deftest test-create-bean-constructors []
@@ -106,7 +106,7 @@
                          :s-vals {:floatVal (float 2.3) :doubleVal (double 3.4) :charVal \H :boolVal true})))
           "0:0:0:0:null:2.3:3.4:H:true"))))
 
-(deftest test-create-complex-w-setters[]
+(deftest test-complex-w-setters[]
     (testing
       "Testing bean creation referring to other beans"
       (let [first-bean (defbean :test-bean-1 boing.test.SimpleClass
@@ -127,7 +127,7 @@
                  (defbean :test-bean-2 boing.test.ComplexClass
                    :s-vals {:simpleBeanOne first-bean
                                 :simpleBeanTwo second-bean})) boing.test.ComplexClass)))))
-(deftest test-complex-instances []
+(deftest test-create-complex []
     (testing
       "Testing bean creation referring to other beans"
       (let [first-bean (defbean :test-bean-1 boing.test.SimpleClass
@@ -145,31 +145,31 @@
             second-bean (defabean boing.test.SimpleClass
                           :s-vals {:byteVal (byte 1) :shortVal (short 2) :intVal (int 3) :longVal (long 4) :stringVal "This is a test"})]
         (is (= (.toString
-                 (create-bean (defbean :test-bean-2 boing.test.ComplexClass
+                 (create-bean (defbean :test-complex-bean-2 boing.test.ComplexClass
                                 :s-vals {:simpleBeanOne first-bean
                                 :simpleBeanTwo second-bean}))) "0:0:0:0:null:2.3:3.4:H:true:1:2:3:4:This is a test:0.0:0.0:\\u0000:false")))))
 
 (deftest test-singleton-setters []
     (testing
       "Testing singleton creation using setters"
-      (let [singleton (defbean :test-bean-1 boing.test.SimpleClass :mode :singleton
+      (let [singleton (defbean :test-singleton-1 boing.test.SimpleClass :mode :singleton
                          :s-vals {:floatVal (float 2.3) :doubleVal (double 3.4) :charVal \H :boolVal true})
             alien-singleton 
-              (defbean :test-bean-1 boing.test.SimpleClass :mode :singleton
-                :s-vals {:floatVal (float 2.3) :doubleVal (double 3.4) :charVal \H :boolVal true})]
+            (with-context :my-ctx
+              (defbean :test-singleton-1 boing.test.SimpleClass :mode :singleton
+                :s-vals {:floatVal (float 2.3) :doubleVal (double 3.4) :charVal \H :boolVal true}))]
         (is (= (.hashCode (create-bean singleton)) (.hashCode (create-bean singleton))))
         (with-context :my-ctx
-          (is (= (.hashCode (create-bean alien-singleton)) (.hashCode (create-bean alien-singleton)))))
-        )))
+          (is (= (.hashCode (create-bean alien-singleton)) (.hashCode (create-bean alien-singleton))))))))
 
 (deftest test-singleton-constructor []
     (testing
       "Testing singleton creation using constructor"
-      (let [singleton (defbean :test-bean-1 boing.test.SimpleClass :mode :singleton
+      (let [singleton (defbean :test-singleton-1 boing.test.SimpleClass :mode :singleton
                          :c-args [(byte 1) (short 2) (int 3) (long 4) "Test string" (float 1.1) (double 1.2) \H true])
             alien-singleton 
             (with-context :my-ctx
-              (defbean :test-bean-1 boing.test.SimpleClass :mode :singleton
+              (defbean :test-singleton-1 boing.test.SimpleClass :mode :singleton
                 :c-args [(byte 1) (short 2) (int 3) (long 4) "Test string" (float 1.1) (double 1.2) \H true]))]
         (is (= (.hashCode (create-bean singleton)) (.hashCode (create-bean singleton))))
         (with-context :my-ctx

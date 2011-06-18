@@ -1,4 +1,4 @@
-(defproject boing "1.1"
+(defproject boing "1.2"
   :min-lein-version "1.5.1"
   :disable-implicit-clean false
   :java-source-path "src"
@@ -12,12 +12,12 @@
              "Specification-Version" "1.0"
              "Specification-Vendor" "SoftAddicts Inc."
              "Implementation-Title" "Boing library"
-             "Implementation-Version" 	"1.1"
+             "Implementation-Version" 	"1.2"
              "Implementation-Vendor" "SoftAddicts Inc."
              }
   :omit-source false
   :aot :all
   :dependencies [
-  	[org.clojure/clojure "1.2.0"]
+  	[org.clojure/clojure "1.2.1"]
   	[org.clojure/clojure-contrib "1.2.0"]]
 )

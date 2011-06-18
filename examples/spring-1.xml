@@ -116,7 +116,7 @@
 		-->
 	</bean>
 
-	<bean id="hmsDataSourceBean" factory-bean="hmsDataSourceFactory"
+	<bean id="hmsDataSourceBean" factory-bean="hmsDataSourceFactoryBean"
 		factory-method="createInstance" />
 
 	<!-- UVIS DAOs -->
@@ -165,7 +165,7 @@
 		class="higiebus.adaptors.hms.cache.HMSCacheFactory">
 	</bean>
 
-	<bean id="hmsCacheBean" factory-bean="hmsCacheFactory" factory-method="createInstance">
+	<bean id="hmsCacheBean" factory-bean="hmsCacheFactoryBean" factory-method="createInstance">
 	</bean>
 
 	<!-- UVIS event processors --> 
@@ -173,7 +173,6 @@
 	<bean id="hmsInboundEventFactoryBean" scope="prototype"
 		class="higiebus.adaptors.hms.uvis.events.inbound.UvisInboundEventFactory">
 		<property name="alerter" ref="alerterBean" />
-		<property name="componentStatus" ref="componentMonitorBean" />
 		<property name="transactionManager" ref="hmsTxManager" />
 		<property name="hmsCache" ref="hmsCacheBean" />
 		<property name="hmsParameters" ref="hmsParametersBean" />
