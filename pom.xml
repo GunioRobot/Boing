@@ -3,10 +3,10 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>boing</groupId>
   <artifactId>boing</artifactId>
-  <version>1.1</version>
+  <version>1.2</version>
   <name>boing</name>
   <scm>
-    <tag>34250c8db872a0bfea5f07f9c968c25c79e179d7</tag>
+    <tag>091c38f85bdc2061af1d5a38a9100a3fa1dba294</tag>
   </scm>
   <build>
     <sourceDirectory>src</sourceDirectory>
@@ -44,7 +44,7 @@
     <dependency>
       <groupId>org.clojure</groupId>
       <artifactId>clojure</artifactId>
-      <version>1.2.0</version>
+      <version>1.2.1</version>
     </dependency>
     <dependency>
       <groupId>org.clojure</groupId>
