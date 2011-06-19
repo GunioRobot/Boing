@@ -50,6 +50,6 @@
                :properties {:floatVal (float 2.3) :doubleVal (double 3.4) :charVal \H :boolVal true})
       (defbean :test-bean-4 boing.test.SimpleClass
         :properties {:floatVal (float 2.3) :doubleVal (double 3.4) :charVal \H :boolVal true}))
-    (merge-contexts :alternate-a :alternate-b)
+    (merge-contexts! :alternate-a :alternate-b)
     (is (= (get-bean-ids :alternate-b) [:test-bean-1 :test-bean-2 :test-bean-3 :test-bean-4]))
     (is (= (get-bean-ids :alternate-a) [:test-bean-1 :test-bean-2]))))

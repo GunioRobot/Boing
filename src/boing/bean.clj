@@ -7,6 +7,7 @@
     [boing.core.reflector] [boing.context] [boing.resource] [clojure.stacktrace]
     [clojure.contrib.def]
     [clojure.contrib.trace])
+  (:require [clojure.string :as s])
   (:gen-class :name boing.Bean
               :methods [#^{:static true} [loadBeandefs [Object] void]
                         #^{:static true} [loadBeandefs [Object Object] void]                  
@@ -64,6 +65,8 @@
   (get-class [this] (.getClass this)))
 
 (defvar- *singletons* (atom {}))
+
+(defn to-keyword [s] (keyword (s/trim (name s))))
 
 (defn- singleton-name
   ([id]
@@ -335,12 +338,14 @@
    This is a Java entry point so Java caller can access Boing bean definitions.
    Context name has to be passed as a string since Clojure keywords are unknown to Java."
   ([bean-resources] (eval-beandefs bean-resources))
-  ([ctx-name bean-resources] (with-context (keyword (name ctx-name))  (eval-beandefs bean-resources))))
+  ([ctx-name bean-resources] (with-context (to-keyword ctx-name)  (eval-beandefs bean-resources))))
 
 (defn- to-string-map
   "Transform keyword keys in a map to strings."
   [cmap]
   (persistent! (reduce #(if (nil? %2) %1 (assoc! %1 (name (key %2)) (val %2))) (transient {}) cmap)))
+
+
 
 (defn to-keyword-map
   "Transform a Java override map to a Clojure map.
@@ -349,24 +354,24 @@
    we area instantiating."
   ([java-list]
     (if (nil? java-list) {}
-      (persistent! (reduce #(if (nil? %2) %1 (assoc! %1 (keyword (name (key %2)))
+      (persistent! (reduce #(if (nil? %2) %1 (assoc! %1 (to-keyword (key %2))
                                                      (to-keyword-map (val %2) true)))  (transient {}) (apply hash-map java-list)))))
   ([java-list one-level]
     (if (nil? java-list) {}
       (if-not (instance? java.util.List java-list) java-list
-        (persistent! (reduce #(if (nil? %2) %1 (assoc! %1 (keyword (name (key %2))) (val %2)))  (transient {}) (apply hash-map java-list)))))))
-    
+        (persistent! (reduce #(if (nil? %2) %1 (assoc! %1 (to-keyword (key %2)) (val %2)))  (transient {}) (apply hash-map java-list)))))))
+
 (defn -createBeanFromContext
   "Instantiate a bean from a definition in a specific context
    Override Java maps are converted to Clojure maps if needed.
    This is a Java entry point so Java caller can instantiate Boing bean definitions.
    Context name and bean name have to be passed as a string since Clojure keywords are unknown to Java."
-  ([^String ctx-name ^String bean-name] (with-context (keyword (name ctx-name)) (create-bean (keyword (name bean-name)))))
+  ([^String ctx-name ^String bean-name] (with-context (to-keyword ctx-name) (create-bean (to-keyword bean-name))))
   ([^String ctx-name ^String bean-name ^java.util.List bean-overrides]
-    (with-context (keyword (name ctx-name)) (create-bean (keyword (name bean-name)) (to-keyword-map bean-overrides true))))
+    (with-context (to-keyword ctx-name) (create-bean (to-keyword bean-name) (to-keyword-map bean-overrides true))))
   ([^String ctx-name ^String bean-name ^java.util.List bean-overrides ^java.util.List global-overrides]
-    (with-context (keyword (name ctx-name))
-      (create-bean (keyword (name bean-name))  (to-keyword-map bean-overrides true)
+    (with-context (to-keyword ctx-name)
+      (create-bean (to-keyword bean-name) (to-keyword-map bean-overrides true)
                    (to-keyword-map global-overrides)))))
 
 (defn -createBean
@@ -374,13 +379,12 @@
    Override Java maps are converted to Clojure maps if needed.
    This is a Java entry point so Java caller can instantiate Boing bean definitions."
 
-  ([^String bean-name] (create-bean (keyword (name bean-name))))
+  ([^String bean-name] (create-bean (to-keyword bean-name)))
   ([^String bean-name ^java.util.List bean-overrides]
-    (create-bean (keyword (name bean-name)) (to-keyword-map bean-overrides true)))
+    (create-bean (to-keyword bean-name) (to-keyword-map bean-overrides true)))
   ([^String bean-name ^java.util.List bean-overrides ^java.util.List global-overrides]
-    (create-bean (keyword (name bean-name))  (to-keyword-map bean-overrides true)
+    (create-bean (to-keyword bean-name)  (to-keyword-map bean-overrides true)
                  (to-keyword-map global-overrides))))
-
 
 (defn -createSingletons
   "Instantiate all singletons in the currrent/given context.
@@ -389,4 +393,4 @@
   ([] (to-string-map (create-singletons)))
   ([^java.util.List global-overrides] (to-string-map (create-singletons (to-keyword-map global-overrides))))
   ([^String ctx-name ^java.util.List global-overrides]
-    (to-string-map (with-context (keyword (name ctx-name)) (create-singletons (to-keyword-map global-overrides)))))) 
+    (to-string-map (with-context (to-keyword ctx-name) (create-singletons (to-keyword-map global-overrides)))))) 
