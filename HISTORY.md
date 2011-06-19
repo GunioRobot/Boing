@@ -14,6 +14,8 @@
 ### 1.2 (2011-06-17)
 
 * Added a Java API to load bean definitions written in Clojure and to instantiate beans
+* Fixed overrides when using constructor values. Overrides were not
+  executed.
 
 
 
