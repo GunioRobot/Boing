@@ -1,7 +1,7 @@
 (ns boing.test.test-bean-java-api
   (:use [boing.bean] [boing.context] [clojure.test] [clojure.pprint]
         [clojure.contrib.trace])
-  (:import [boing Bean]))
+  (:import [boing Bean] [java.util Arrays]))
 
 (deftest test-create-bean-constructors []
   (testing
@@ -92,9 +92,13 @@
                                  :c-args [ { :a 3 :b 4}])
               singleton-bean-3 (defbean :s3 boing.test.SimpleClass :mode :singleton
                                  :c-args [ { :a 5 :b 6}])
-              singletons (Bean/createSingletons)]
-          (is (= (apply str singletons)
-                 "[:s3 #<SimpleClass 0:0:0:0:null:0.0:0.0:\\u0000:false:{b=6, a=5}>][:s2 #<SimpleClass 0:0:0:0:null:0.0:0.0:\\u0000:false:{b=4, a=3}>][:s1 #<SimpleClass 0:0:0:0:null:0.0:0.0:\\u0000:false:{b=2, a=1}>]")))))))
+              global-overrides (Arrays/asList (to-array ["s3" (Arrays/asList (to-array [ "charVal" \Y]))]))]
+          (is (= (apply str (Bean/createSingletons))
+ "[\"s3\" #<SimpleClass 0:0:0:0:null:0.0:0.0:\\u0000:false:{b=6, a=5}>][\"s2\" #<SimpleClass 0:0:0:0:null:0.0:0.0:\\u0000:false:{b=4, a=3}>][\"s1\" #<SimpleClass 0:0:0:0:null:0.0:0.0:\\u0000:false:{b=2, a=1}>]"))
+          (is (= (apply str (Bean/createSingletons nil))
+ "[\"s3\" #<SimpleClass 0:0:0:0:null:0.0:0.0:\\u0000:false:{b=6, a=5}>][\"s2\" #<SimpleClass 0:0:0:0:null:0.0:0.0:\\u0000:false:{b=4, a=3}>][\"s1\" #<SimpleClass 0:0:0:0:null:0.0:0.0:\\u0000:false:{b=2, a=1}>]"))
+          (is (= (apply str (Bean/createSingletons global-overrides))
+ "[\"s3\" #<SimpleClass 0:0:0:0:null:0.0:0.0:\\u0000:false:{b=6, a=5}>][\"s2\" #<SimpleClass 0:0:0:0:null:0.0:0.0:\\u0000:false:{b=4, a=3}>][\"s1\" #<SimpleClass 0:0:0:0:null:0.0:0.0:\\u0000:false:{b=2, a=1}>]")))))))
 
 (deftest test-overrides []
   (testing
@@ -106,10 +110,9 @@
           complex-bean (defbean :test-complex-bean-2 boing.test.ComplexClass
                          :s-vals {:simpleBeanOne first-bean
                                   :simpleBeanTwo second-bean})
-          local-override (doto (java.util.HashMap.) (.put "byteVal" (byte 3)))
-          global-override (doto (java.util.HashMap.)
-                            (.put "test-bean-1" (doto (java.util.HashMap.) (.put "charVal" \Y))))]
+          local-overrides (Arrays/asList (to-array ["byteVal" (byte 3)]))
+          global-overrides (Arrays/asList (to-array ["test-bean-1" (Arrays/asList (to-array [ "charVal" \Y]))]))]
       (is (= (.toString (Bean/createBean "test-bean-2")) "1:2:3:4:This is a test:0.0:0.0:\\u0000:false" ))
-      (is (= (.toString (Bean/createBean "test-bean-2" local-override)) "3:2:3:4:This is a test:0.0:0.0:\\u0000:false"))
-      (is (= (.toString (Bean/createBean "test-bean-2" (java.util.HashMap.) global-override)) "1:2:3:4:This is a test:0.0:0.0:\\u0000:false"))
-      (is (= (.toString (Bean/createBean "test-complex-bean-2" (java.util.HashMap.) global-override)) "0:0:0:0:null:2.3:3.4:Y:true:1:2:3:4:This is a test:0.0:0.0:\\u0000:false" )))))
+      (is (= (.toString (Bean/createBean "test-bean-2" local-overrides)) "3:2:3:4:This is a test:0.0:0.0:\\u0000:false"))
+      (is (= (.toString (Bean/createBean "test-bean-2" nil global-overrides)) "1:2:3:4:This is a test:0.0:0.0:\\u0000:false"))
+      (is (= (.toString (Bean/createBean "test-complex-bean-2" nil global-overrides)) "0:0:0:0:null:2.3:3.4:Y:true:1:2:3:4:This is a test:0.0:0.0:\\u0000:false" )))))

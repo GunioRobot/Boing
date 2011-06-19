@@ -16,9 +16,9 @@
                         #^{:static true} [createBeanFromContext [String String] Object]
                         #^{:static true} [createBeanFromContext [String String java.util.List] Object]
                         #^{:static true} [createBeanFromContext [String String java.util.List java.util.List] Object]
-                        #^{:static true} [createSingletons [] java.util.List]
-                        #^{:static true} [createSingletons [java.util.List] java.util.List]
-                        #^{:static true} [createSingletons [String java.util.List] java.util.List]]))
+                        #^{:static true} [createSingletons [] java.util.Map]
+                        #^{:static true} [createSingletons [java.util.List] java.util.Map]
+                        #^{:static true} [createSingletons [String java.util.List] java.util.Map]]))
 
 (defvar- *runtime-overrides* {})
 (defvar- *aliases* {})
@@ -157,7 +157,7 @@
       (property-name bean-bindings))))
  
 (defn- apply-setter
-  "Apply setter to an allocated bean, We recurse through create-bean but the recursion level
+  "Apply a setter to an allocated bean, We recurse through create-bean but the recursion level
    is acceptable. Bean hierarchies are not very deep most of the time and the stack should not blow out.
    A setter value can be:
       - Another embedded bean definition
@@ -202,11 +202,16 @@
       (if-let [override (:class-override (:beandef singleton))]
         (invoke-wrapper beandef "post-function" ((:post (:beandef singleton)) (:instance singleton)))
         (:instance singleton))
-	    (let [{:keys [constructor c-args setters pre post init id mode] } beandef
-            instance (invoke-constructor constructor (map #(if (nil? %) nil (get-value %)) c-args))]
+	    (let [{:keys [constructor c-args java-class setters pre post init id mode] } beandef
+            instance (invoke-constructor constructor (map #(if (nil? %) nil (get-value %)) c-args))
+            property-overrides (id *runtime-overrides*)]
        (binding [*current-bean* id]
          (if-not (nil? pre) (invoke-wrapper beandef "pre-function" (pre instance)))
-         (dorun (map (fn [e] (invoke-wrapper beandef "Setter" (apply-setter instance (val e)))) setters))
+         ;; Apply setters excluding the ones for which an override is provided
+         (dorun (map (fn [e] (invoke-wrapper beandef "Setter" (apply-setter instance (val e)))) (dissoc setters (keys property-overrides))))
+         ;; Apply property overrides if any
+         (if-let [setter-overrides (valid-bean-setters? id java-class property-overrides)]
+           (dorun (map (fn [e] (invoke-wrapper beandef "Override setters" (apply-setter instance (val e)))) setter-overrides)))
          (if-not (nil? init) (invoke-wrapper beandef "Initialization" (invoke-method instance init)))
          (if (= mode :singleton) (register-singleton id beandef instance))
          (if-not (nil? post)       ;; The post fn return value is returned as the object instance
@@ -228,8 +233,7 @@
     (try
       (let [bean-id (if (keyword? beandef-or-id) beandef-or-id (:id beandef-or-id))
             ctx (get-context *current-context*)]
-        (binding [*runtime-overrides* (merge *runtime-overrides* {bean-id bean-overrides} global-overrides)
-                  *aliases* (:aliases ctx)]
+        (binding [*runtime-overrides* (merge *runtime-overrides* {bean-id bean-overrides} global-overrides)]
           (if (nil? beandef-or-id) nil (get-value beandef-or-id))
           (catch Exception e#
             (print-stack-trace e# 1)
@@ -273,8 +277,7 @@
   ([global-overrides]
     (try
       (let [ctx (get-context *current-context*)]
-        (binding [*runtime-overrides* (merge *runtime-overrides* global-overrides)
-                  *aliases* (:aliases ctx)]
+        (binding [*runtime-overrides* (merge *runtime-overrides* global-overrides)]
           (persistent!
             (reduce #(if (nil? %2) %1 (conj! %1 %2))
                     (transient {}) (map (fn [e] (if (= (:mode (val e)) :singleton) {(key e) (allocate-bean (val e))})) (:beandefs ctx))))))
@@ -334,6 +337,10 @@
   ([bean-resources] (eval-beandefs bean-resources))
   ([ctx-name bean-resources] (with-context (keyword (name ctx-name))  (eval-beandefs bean-resources))))
 
+(defn- to-string-map
+  "Transform keyword keys in a map to strings."
+  [cmap]
+  (persistent! (reduce #(if (nil? %2) %1 (assoc! %1 (name (key %2)) (val %2))) (transient {}) cmap)))
 
 (defn to-keyword-map
   "Transform a Java override map to a Clojure map.
@@ -379,6 +386,7 @@
   "Instantiate all singletons in the currrent/given context.
    This is a Java entry point so Java caller can access Boing bean definitions.
    Context name has to be passed as a string since Clojure keywords are unknown to Java."
-  ([] (create-singletons))
-  ([^java.util.List global-override] (create-singletons (to-keyword-map global-overrides)))
-  ([^String ctx-name ^java.util.List global-override] (with-context (keyword (name ctx-name)) (create-singletons (to-keyword-map global-overrides))))) 
+  ([] (to-string-map (create-singletons)))
+  ([^java.util.List global-overrides] (to-string-map (create-singletons (to-keyword-map global-overrides))))
+  ([^String ctx-name ^java.util.List global-overrides]
+    (to-string-map (with-context (keyword (name ctx-name)) (create-singletons (to-keyword-map global-overrides)))))) 
