@@ -13,7 +13,7 @@
       (if-let [url (ClassLoader/getSystemResource respath)] url
         (java.net.URL. respath)))
     (catch Exception e#
-      (print-cause-trace e#) (throw (Exception. (format "Cannot find URL for resource path %s:%s" respath (.getCause e#)))))))
+      (print-cause-trace e#) (throw (Exception. (format "Cannot find URL for resource path %s: %s" respath (.getMessage e#)))))))
 
 (defn- access-jar
   "Access a jar file from a url and return a JarFile object to access it"
