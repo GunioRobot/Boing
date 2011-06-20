@@ -6,7 +6,7 @@
   <version>1.2</version>
   <name>boing</name>
   <scm>
-    <tag>2341be1c36c2bd9731b8de64c83d77574310d8aa</tag>
+    <tag>231509275d20779b1e942b9cf16b2492f4b456ff</tag>
   </scm>
   <build>
     <sourceDirectory>src</sourceDirectory>
