@@ -66,7 +66,7 @@
 
 (defvar- *singletons* (atom {}))
 
-(defn to-keyword [s] (keyword (s/trim (name s))))
+(defn- to-keyword [s] (keyword (s/trim (name s))))
 
 (defn- singleton-name
   ([id]
@@ -347,7 +347,7 @@
 
 
 
-(defn to-keyword-map
+(defn- to-keyword-map
   "Transform a Java override map to a Clojure map.
    For global overrides we need to recurse down one level since we may have a map of overrides for each bean.
    The second entry point here is to prevent recursing down one level when we convert local overrides for the bean
