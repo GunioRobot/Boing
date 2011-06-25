@@ -323,11 +323,11 @@
         (load-and-eval bean-resources)
         (instance? java.net.URL bean-resources) ;; Strict URL
         (load-and-eval bean-resources)
-        (instance? (class "[Ljava.lang.Object;") bean-resources) ;; An array of file names/string URLs and or URLs
+        (instance? (Class/forName "[Ljava.lang.Object;") bean-resources) ;; An array of file names/string URLs and or URLs
         (doall (map #(load-and-eval %) bean-resources))
-        (instance? (class "[Ljava.lang.String;") bean-resources) ;; An array of file names or string URLs
+        (instance? (Class/forName "[Ljava.lang.String;") bean-resources) ;; An array of file names or string URLs
         (doall (map #(load-and-eval %) bean-resources))
-        (instance? (class "[Ljava.net.URL;") bean-resources) ;; An array of URLs
+        (instance? (Class/forName "[Ljava.net.URL;") bean-resources) ;; An array of URLs
         (doall (map #(load-and-eval %) bean-resources)) 
         :else (throw (Exception. (format "Cannot load Boing definitions from %s" bean-resources)))))  
   
