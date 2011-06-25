@@ -10,7 +10,7 @@
   [respath]
   (try
     (if (instance? java.net.URL respath) respath
-      (if-let [url (ClassLoader/getSystemResource respath)] url
+      (if-let [url (ClassLoader/getSystemResource (s/trim respath))] url
         (java.net.URL. respath)))
     (catch Exception e#
       (print-cause-trace e#) (throw (Exception. (format "Cannot find URL for resource path %s: %s" respath (.getMessage e#)))))))
