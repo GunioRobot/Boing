@@ -6,7 +6,7 @@
            [java.lang ClassLoader] [java.io File] [java.util Properties]))
 
 (defn find-url
-  ;;"Return the URL of a given resource."
+  "Return the URL of a given resource."
   [respath]
   (try
     (if (instance? java.net.URL respath) respath
@@ -28,12 +28,12 @@
    If resources are in a jar file, a class in the jar file must be provided so
    it can be located on the classpath.
    A regex pattern can be provided as a string to filter the resources by their names."
-  ([respath & {:keys [from-class pattern]}]
-    (try 
+  ([respath & {:keys [from-class pattern remove-path]}]
+    (try
       (if (nil? from-class)
         (if-let [url (find-url respath)]
           (cond (= (.getProtocol url) "file") 
-                (persistent! conj! (transient []) (-> (File. (.toURI url)) (.list)))
+                (persistent! (reduce #(if (nil? %1) %1 (conj! %1 %2)) (transient []) (-> (File. (.toURI url)) (.list))))
                 :else (throw (UnsupportedOperationException.
                                (format "Cannot list files for url %s" url))))
           ())
@@ -83,18 +83,20 @@
 (defn load-and-eval
   "Load a clojure resource file and evaluate it."
   ([respath]
-    (try 
+    (try
       (load-and-eval respath (str (.getName *ns*)))
       (catch Exception e# (print-cause-trace e#) (throw e#))))
-    ([respath namespace-name]
-      (try 
-        (let [nsname (cond (instance? clojure.lang.Namespace namespace-name) (str (.getName namespace-name))
-                           (instance? String namespace-name) namespace-name
-                           :else (throw (Exception. (format "load-and-eval: not a namespace: %s" namespace-name))))
-              file-content (load-text-resource respath)
-              code (str "(in-ns '" nsname ") " file-content " (in-ns '" (.name *ns*) ") ")]
-          (load-string  code))
-        (catch Exception e# (print-cause-trace e#) (throw e#)))))
+  ([respath namespace-name]
+    (let [nsname (cond (instance? clojure.lang.Namespace namespace-name) (str (.getName namespace-name))
+                       (instance? String namespace-name) namespace-name
+                       :else (throw (Exception. (format "load-and-eval: not a namespace: %s" namespace-name))))
+          file-content (load-text-resource respath)
+          code (str "(in-ns '" nsname ") " file-content " (in-ns '" (.name *ns*) ") ")]
+      (try
+        (load-string code)
+        (catch Exception e#
+          (spit "/tmp/failed-load.clj" code)
+          (throw (Exception. (format "Failed loading %s: %s: %s characters" respath (.getMessage e#) (count code)))))))))
 
  
       
