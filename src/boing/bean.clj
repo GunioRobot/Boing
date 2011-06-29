@@ -79,11 +79,11 @@
 (defn- print-instance
   "Print instance summary if trace on."
   [id instance]
-  (if (nil? instance)
-    (do (println (str (indent-level) (format "Bean %s Object nil" id))) instance)
-    (if @*debug-mode*
-      (do (println (str (indent-level) (format "Bean %s Class %s Object %s" id (class instance) (.hashCode instance)))) instance)
-      instance)))
+  (if @*debug-mode*
+    (if (nil? instance)
+      (do (println (str (indent-level) (format "Bean %s Object nil" id))) instance)
+      (do (println (str (indent-level) (format "Bean %s Class %s Object %s" id (class instance) (.hashCode instance)))) instance)))
+  instance)
 
 (defn- to-keyword [s] (keyword (s/trim (name s))))
 
