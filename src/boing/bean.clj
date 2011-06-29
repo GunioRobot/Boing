@@ -19,11 +19,15 @@
                         #^{:static true} [createBeanFromContext [String String java.util.List java.util.List] Object]
                         #^{:static true} [createSingletons [] java.util.Map]
                         #^{:static true} [createSingletons [java.util.List] java.util.Map]
-                        #^{:static true} [createSingletons [String java.util.List] java.util.Map]]))
+                        #^{:static true} [createSingletons [String java.util.List] java.util.Map]
+                        #^{:static true} [setDebug [java.lang.Boolean] void]]))
 
 (defvar- *runtime-overrides* {})
 (defvar- *aliases* {})
 (defvar- *current-bean* nil)
+(defvar- *depth* 0)
+(defvar- *debug-mode* (atom false))
+(defvar- *singletons* (atom {}))
 
 (declare allocate-bean)
 
@@ -64,13 +68,26 @@
   (get-value [this] this)
   (get-class [this] (.getClass this)))
 
-(defvar- *singletons* (atom {}))
+(defn- indent-level
+  "Return an indent string according to the trace depth"
+  [] (str *depth* " " (apply str (take (* *depth* 1) (cycle "|")))))
+
+(defn- print-debug
+  "Local trace fn"
+  [& args] (println (str (indent-level) (apply format args))))
+
+(defn- print-instance
+  "Print instance summary if trace on."
+  [id instance]
+  (if (nil? instance)
+    (do (println (str (indent-level) (format "Bean %s Object nil" id))) instance)
+    (if @*debug-mode*
+      (do (println (str (indent-level) (format "Bean %s Class %s Object %s" id (class instance) (.hashCode instance)))) instance)
+      instance)))
 
 (defn- to-keyword [s] (keyword (s/trim (name s))))
 
-(defn- singleton-name
-  ([id]
-    (keyword (str "singleton-" id (name *current-context*)))))
+(defn- singleton-name ([id] (keyword (str "singleton-" id "-" (name *current-context*)))))
 
 (defn- singleton?
   "Check if the given bean id corresponds to a singleton in the cache for the current context.
@@ -83,7 +100,8 @@
 (defn- register-singleton
   "Register a singleton in the cache in the current context."
   [id beandef instance]
-    (swap! *singletons* #(merge %1 %2) { (singleton-name id) {:beandef beandef :instance instance}}))
+  (if @*debug-mode* (print-debug "Registering singleton: %s %s" id (.hashCode instance)))
+  (swap! *singletons* #(merge %1 %2) { (singleton-name id) {:beandef beandef :instance instance}}))
  
 (defn- property-def
   "Define a property value to be set at instantiation time"
@@ -92,7 +110,8 @@
         setter (property-name setters)
         property (pname properties)]
     (cond (nil? setter)
-          (throw (Exception. (format "No setter for property %s in class %s" property-name java-class)))
+          (throw (Exception. (format "No setter for property %s in class %s:\navailable setters %s"
+                                     property-name java-class setters)))
           :else
           (do
             (if (not (nil? property)) (valid-method-sig? java-class setter [property]))
@@ -178,11 +197,13 @@
     (if-let [value (if (not (nil? value-override)) value-override
                      (if (not (nil? value)) (get-value value)))]
       (try
+        (if @*debug-mode* (print-debug (format "Setting property %s %s" property (nil? value))))
         (invoke-method instance setter [value] mth-arg-classes)
         (catch Exception e#
           (print-cause-trace e#)
           (throw (Exception.
-                   (format "Error in setter: %s\n\tsetter %s\n\tvalue %s" (.getMessage e#) propdef value))))))))
+                   (format "Error in setter: %s\n\tsetter %s\n\tvalue %s" (.getMessage e#) property value)))))
+      (if @*debug-mode* (print-debug (format "Property %s is null" property ))))))
 
 (declare bean-info)
 
@@ -190,37 +211,46 @@
   `(let [id# (:id ~beandef)
          context# (:context ~beandef)]
      (try
+       (if @*debug-mode* (print-debug (format "Invoking step %s on %s" ~step id#)))
        ~@body
      (catch Exception e#
        (println (format "Failed invoking %s step on instance of bean %s in context %s error: %s"
                         ~step id# context# (.getMessage e#)))
        (print-cause-trace e#) (throw (Exception. (.getCause e#))))))) 
 
+(defn- allocate-singleton
+  "Test for singleton and instantiate it if necessary."
+  [beandef]
+  (if-let [singleton (singleton? beandef)]
+    (let [id (:id beandef)
+          instance (:instance singleton)]
+      (when @*debug-mode*
+        (print-debug (format "Returning singleton %s %s" id (.hashCode instance))))
+      instance)))
+
 (defn- allocate-bean
-  "Instantiate an object from an inline bean definition"
+  "Instantiate an object from a bean definition"
   [beandef]
   (try
-    (if-let [singleton (singleton? beandef)]
-      ;; If the singleton overrides it's class, we need to call the post fn
-      (if-let [override (:class-override (:beandef singleton))]
-        (invoke-wrapper beandef "post-function" ((:post (:beandef singleton)) (:instance singleton)))
-        (:instance singleton))
-	    (let [{:keys [constructor c-args java-class setters pre post init id mode] } beandef
-            instance (invoke-constructor constructor (map #(if (nil? %) nil (get-value %)) c-args))
-            property-overrides (id *runtime-overrides*)]
-       (binding [*current-bean* id]
-         (if-not (nil? pre) (invoke-wrapper beandef "pre-function" (pre instance)))
-         ;; Apply setters excluding the ones for which an override is provided
-         (dorun (map (fn [e] (invoke-wrapper beandef "Setter" (apply-setter instance (val e)))) (dissoc setters (keys property-overrides))))
-         ;; Apply property overrides if any
-         (if-let [setter-overrides (valid-bean-setters? id java-class property-overrides)]
-           (dorun (map (fn [e] (invoke-wrapper beandef "Override setters" (apply-setter instance (val e)))) setter-overrides)))
-         (if-not (nil? init) (invoke-wrapper beandef "Initialization" (invoke-method instance init)))
-         (if (= mode :singleton) (register-singleton id beandef instance))
-         (if-not (nil? post)       ;; The post fn return value is returned as the object instance
-           (invoke-wrapper beandef "post-function" (post instance)) 
-           instance))))
-     (catch Exception e# (print-cause-trace e#) (throw (Exception. (.getCause e#))))))
+    (binding [*depth* (inc *depth*)]
+      (if-let [singleton (allocate-singleton beandef)] singleton
+        (let [{:keys [constructor c-args java-class setters pre post init id mode] } beandef
+              instance (invoke-constructor constructor (map #(if (nil? %) nil (get-value %)) c-args))
+              property-overrides (id *runtime-overrides*)]
+          (if @*debug-mode* (print-debug (format "Instantiating bean %s" id)))
+          (binding [*current-bean* id]
+            (if-not (nil? pre) (invoke-wrapper beandef "pre-function" (pre instance)))
+            ;; Apply setters excluding the ones for which an override is provided
+            (dorun (map (fn [e] (invoke-wrapper beandef "Setter" (apply-setter instance (val e)))) (dissoc setters (keys property-overrides))))
+            ;; Apply property overrides if any
+            (if-let [setter-overrides (valid-bean-setters? id java-class property-overrides)]
+              (dorun (map (fn [e] (invoke-wrapper beandef "Override setters" (apply-setter instance (val e)))) setter-overrides)))
+            (if-not (nil? init) (invoke-wrapper beandef "Initialization" (invoke-method instance init)))
+            (let [post-instance  (if-not (nil? post)       ;; The post fn return value is returned as the object instance
+                                   (invoke-wrapper beandef "post-function" (post instance)) instance)]
+              (if (= mode :singleton) (register-singleton id beandef post-instance))
+              post-instance)))))
+    (catch Exception e# (print-cause-trace e#) (throw (Exception. (.getCause e#))))))
 
 (defn create-bean
   "Return a new instanciation of a bean or the existing singleton if it already exists.
@@ -237,7 +267,7 @@
       (let [bean-id (if (keyword? beandef-or-id) beandef-or-id (:id beandef-or-id))
             ctx (get-context *current-context*)]
         (binding [*runtime-overrides* (merge *runtime-overrides* {bean-id bean-overrides} global-overrides)]
-          (if (nil? beandef-or-id) nil (get-value beandef-or-id))))
+          (if (nil? beandef-or-id) nil (print-instance bean-id (get-value beandef-or-id)))))
       (catch Exception e#
         (print-stack-trace e# 1)
         (root-cause e#) (throw e#)))))
@@ -253,7 +283,7 @@
     (if-let [ctx (get-context *current-context*)]
       (if-let [beandef (id (:beandefs ctx))] (print-bean-info beandef)
         (println (format "No such bean %s" id)))))
-  ([id ctx-id]*current-bean* 
+  ([id ctx-id]
     (if-let [ctx (get-context ctx-id)]
       (if-let [beandef (id (:beandefs ctx))] (print-bean-info beandef)
         (println (format "No such bean %s" id))))))
@@ -283,10 +313,18 @@
         (binding [*runtime-overrides* (merge *runtime-overrides* global-overrides)]
           (persistent!
             (reduce #(if (nil? %2) %1 (conj! %1 %2))
-                    (transient {}) (map (fn [e] (if (= (:mode (val e)) :singleton) {(key e) (allocate-bean (val e))})) (:beandefs ctx))))))
-      (catch Exception e#
-        (print-stack-trace e# 1)
-        (root-cause e#) (throw e#)))))
+                    (transient {}) (map (fn [e] (if (= (:mode (val e)) :singleton) {(key e) (print-instance (key e) (allocate-bean (val e)))}))
+                                        (:beandefs ctx))))))
+      (catch Exception e# (print-stack-trace e# 1) (root-cause e#) (throw e#)))))
+
+(defn call-method
+  "Helper fn to call hidden methods. It uses the arguments signature to find the method."
+  [this mth-name & args]
+  (let [cl (class this)
+        arg-classes (if (pos? (count args)) (into-array java.lang.Class (map #(class %) args)) nil)
+        args-array (if (pos? (count args)) (to-array args) nil)
+        mth (.getDeclaredMethod cl mth-name arg-classes)]
+    (.invoke mth this args-array)))
 
 (defmacro with-context
   "Using the given context evaluate the given body.
@@ -345,8 +383,6 @@
   [cmap]
   (persistent! (reduce #(if (nil? %2) %1 (assoc! %1 (name (key %2)) (val %2))) (transient {}) cmap)))
 
-
-
 (defn- to-keyword-map
   "Transform a Java override map to a Clojure map.
    For global overrides we need to recurse down one level since we may have a map of overrides for each bean.
@@ -387,10 +423,17 @@
                  (to-keyword-map global-overrides))))
 
 (defn -createSingletons
-  "Instantiate all singletons in the currrent/given context.
+  "Instantiate all singletons in the current/given context.
    This is a Java entry point so Java caller can access Boing bean definitions.
    Context name has to be passed as a string since Clojure keywords are unknown to Java."
   ([] (to-string-map (create-singletons)))
   ([^java.util.List global-overrides] (to-string-map (create-singletons (to-keyword-map global-overrides))))
   ([^String ctx-name ^java.util.List global-overrides]
-    (to-string-map (with-context (to-keyword ctx-name) (create-singletons (to-keyword-map global-overrides)))))) 
+    (to-string-map (with-context (to-keyword ctx-name) (create-singletons (to-keyword-map global-overrides))))))
+
+(defn set-debug!
+  "Set/reset debug mode."
+  [debug] (reset! *debug-mode* debug))
+
+(defn -setDebug "From Java..." [^java.lang.Boolean debug] (reset! *debug-mode* debug))
+
