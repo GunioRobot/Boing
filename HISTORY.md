@@ -17,5 +17,11 @@
 * Fixed overrides when using constructor values. Overrides were not
   executed.
 
+### 1.2.1 (2011-06-28)
+
+* Added debug mode to trace bean instantiations, equally usable from the Java API
+* Fixed a singleton post fn bug, the fn was called every time a singleton was requested instead of only once
+* Fixed resource load issue when using url like file://.
+
 
 

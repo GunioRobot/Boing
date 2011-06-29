@@ -3,10 +3,10 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>boing</groupId>
   <artifactId>boing</artifactId>
-  <version>1.2</version>
+  <version>1.2.1</version>
   <name>boing</name>
   <scm>
-    <tag>88add48db4b919966d701a0498b473d46b774830</tag>
+    <tag>824fa89d334321b3a52f2f04dbc208acb3a2b17d</tag>
   </scm>
   <build>
     <sourceDirectory>src</sourceDirectory>
