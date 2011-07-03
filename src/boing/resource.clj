@@ -33,7 +33,7 @@
       (if (nil? from-class)
         (if-let [url (find-url respath)]
           (cond (= (.getProtocol url) "file") 
-                (persistent! (reduce #(if (nil? %1) %1 (conj! %1 %2)) (transient []) (-> (File. (.toURI url)) (.list))))
+                (persistent! (reduce #(if (nil? %2) %1 (conj! %1 %2)) (transient []) (-> (File. (.toURI url)) (.list))))
                 :else (throw (UnsupportedOperationException.
                                (format "Cannot list files for url %s" url))))
           ())
@@ -41,9 +41,9 @@
           (cond (= (.getProtocol url) "jar")
                 (if-let [jar-file (access-jar url)]
                   (if (nil? pattern)
-                    (persistent! (reduce #(if (nil? %1) %1 (conj! %1 %2)) (transient [])
+                    (persistent! (reduce #(if (nil? %2) %1 (conj! %1 %2)) (transient [])
                                          (map #(.getName %) (enumeration-seq (.entries jar-file)))))
-                    (persistent! (reduce #(if (nil? %1) %1 (conj! %1 %2)) (transient [])
+                    (persistent! (reduce #(if (nil? %2) %1 (conj! %1 %2)) (transient [])
                                          (map (fn [e] (if (.matches (.getName e) pattern) (.getName e))) (enumeration-seq (.entries jar-file))))))))))
     (catch Exception e# (print-cause-trace e#) (throw e#)))))
 
